@@ -17,11 +17,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  # Build job runs without the github-pages environment so that, on the very
+  # first run, it can enable Pages (which creates that environment) before the
+  # deploy job's environment gate is evaluated.
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,6 +38,13 @@ jobs:
           # Publish the repository root (index.html lives here).
           path: '.'
 
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
