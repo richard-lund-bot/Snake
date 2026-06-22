@@ -141,7 +141,7 @@
         <button id="k-right" class="key" aria-label="Right">▶</button>
         <button id="k-down"  class="key" aria-label="Down">▼</button>
       </div>
-      <div id="hint">SWIPE · ARROWS · KEYS</div>
+      <div id="hint">SWIPE OR ARROWS · OK PAUSES</div>
     </div>
   </div>
 
@@ -340,11 +340,11 @@
     e.preventDefault();
   }, { passive: false });
 
-  // swipe on the screen
-  var sx0 = 0, sy0 = 0, moved = false, st0 = 0, wasPlaying = false;
+  // swipe on the screen to steer (pause is the OK key / Space — never a tap,
+  // so launching the game can't accidentally pause it on the same gesture)
+  var sx0 = 0, sy0 = 0;
   screenEl.addEventListener('touchstart', function(e){
     var t = e.changedTouches[0]; sx0 = t.clientX; sy0 = t.clientY;
-    moved = false; st0 = Date.now(); wasPlaying = (state === 'playing');
   }, { passive: true });
   screenEl.addEventListener('touchmove', function(e){
     e.preventDefault();
@@ -352,12 +352,8 @@
     var t = e.changedTouches[0], dx = t.clientX - sx0, dy = t.clientY - sy0;
     if (Math.abs(dx) < SWIPE && Math.abs(dy) < SWIPE) return;
     if (Math.abs(dx) > Math.abs(dy)) setDir(dx > 0 ? 1 : -1, 0); else setDir(0, dy > 0 ? 1 : -1);
-    sx0 = t.clientX; sy0 = t.clientY; moved = true;
+    sx0 = t.clientX; sy0 = t.clientY;
   }, { passive: false });
-  screenEl.addEventListener('touchend', function(){
-    // only a deliberate tap that began during play pauses (avoids start-then-pause)
-    if (!moved && wasPlaying && state === 'playing' && Date.now() - st0 < 300) togglePause();
-  }, { passive: true });
 
   document.addEventListener('touchmove', function(e){ e.preventDefault(); }, { passive: false });
   document.addEventListener('gesturestart', function(e){ e.preventDefault(); });
