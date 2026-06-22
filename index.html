@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Snake</title>
+<meta name="description" content="Classic Snake — swipe to play. Add to your home screen and play full-screen.">
+<meta name="theme-color" content="#020617">
+<!-- iOS: full-screen standalone + add to home screen -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Snake">
+<meta name="format-detection" content="telephone=no">
+<link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAIAAACyr5FlAAAELElEQVR42u3bS06bZxTHYZer7zbgC7YJl2BIgUqZdAlZRbbQVWQNHXUBUdfQdXQh3UAHtRUJqdV3XqoPjGnPI/0ziJ4JOvr5tYSSRmfywaxyjfb4drj4IRrNrOKg4qDioOKg4qDioG82jpvh4iEazayN9uhmOH+IRjPrOg6zynk5aPxytEY3g/lDNJpZxUHFQWvFsRzM76PRzCoOKg5aJ46T5WB2H41mVnHQYhxmlfNy0NLLcT2Y3UWjmVUcNI6jeXLdn91Fo5lVHFQctE4cx9f907toNLOKg5bieN8//T4azazrOMwq5+WgxZfDOag4qDioOOjG4zg8uupNP0SjmVUcVBxUHPSF4zCrnJeD+lqhteK47E1vo9HMKg5aiGN42ZvcRqOZVRxUHLRGHAfDy+7kNhrNrOKgxTjMKreK46I7uYlGM6s4qDhonTgGF93xTTSaWcVBxUHFQV82jvPueBmNZlZx0DiO/cG5WeXWcXTGy2g0s4qDFuLon3dGy2g0s4qDluJ41xldR6OZVRxUHFQcVBz0teKwx3W+fN7Qlj//VFj5p/r148fCNncNL8ff9+Xz8Lcv0Z6jqwJ+/P2XaOWfalXAH58+Rdvgy7HXO2ufvI+WTbcVR/mn+hbHn1+/fts/4tjcNcTxqnEMpverPTbx+Nd/E0c0cYhDHL5WxCEOcYhDHOL4/8axaJ9cRcum24uj9FM9FcemrrGOwx5X/i1ntms09rqL9vFVtGxa/vRnu4Y4xCEOcdSIY7e7aB1fRcum5TiyXUMc4ijFMW8dX0bLpk/Fkesa4hCHOMQhDnG8aByduT2u/BvSbNdYx9E6uoyWTZ94OZJdQxziEIc4asUxax1dRMumT8WR6xriEEccx05n1jy6iJZNy3Fku4Y4xCEOcdSJoz1rDi+iZdMn4kh2jXUc9rjN/S/752xb11jFcdocnkfLppv71+fP0W1dQxziEIc4xCEOcYhDHOIQhzjeaBzftaaHg3fRsunbjGNb1xCHOIpxmFXOy0F9rVBxUHHQV4pjcjg4i0YzqzhoIY7m5LB/Fo1mVnFQcdAacTSaE7Pqrf4c9M+i0dTaaI4P+otoNLU6BxUHFQd9yTgOxwe9RTSaWp2DioPWiWN00JtHo6l1xWbV81mhpZdjvzePRlOrc1Bx0BpxHIz2u/NoNLU6By3EcbLfnUWjqdU5qDhorTjMquezQn2tUHHQl4xj/3ivcxqNplbnoOKg4qDioOKg247DrHqN/aO9zjQaTa3OQeM49o722tNoNLU6BxUHrRXHbnsajaZW56CFOIa77Uk0mlqdg5biMKuezwqNX47d4W5rEo2mVueg4qB14hjstsbRaGp1DioOWiuOndY4Gk2tzkFLcZhVr7Ez2GmOo9HU2tjp7zRH0WhqdQ4qDioOKg4qDioOKg7639K/AFjmJZKPMM4gAAAAAElFTkSuQmCC">
+<link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAIAAACyr5FlAAAELElEQVR42u3bS06bZxTHYZer7zbgC7YJl2BIgUqZdAlZRbbQVWQNHXUBUdfQdXQh3UAHtRUJqdV3XqoPjGnPI/0ziJ4JOvr5tYSSRmfywaxyjfb4drj4IRrNrOKg4qDioOKg4qDioG82jpvh4iEazayN9uhmOH+IRjPrOg6zynk5aPxytEY3g/lDNJpZxUHFQWvFsRzM76PRzCoOKg5aJ46T5WB2H41mVnHQYhxmlfNy0NLLcT2Y3UWjmVUcNI6jeXLdn91Fo5lVHFQctE4cx9f907toNLOKg5bieN8//T4azazrOMwq5+WgxZfDOag4qDioOOjG4zg8uupNP0SjmVUcVBxUHPSF4zCrnJeD+lqhteK47E1vo9HMKg5aiGN42ZvcRqOZVRxUHLRGHAfDy+7kNhrNrOKgxTjMKreK46I7uYlGM6s4qDhonTgGF93xTTSaWcVBxUHFQV82jvPueBmNZlZx0DiO/cG5WeXWcXTGy2g0s4qDFuLon3dGy2g0s4qDluJ41xldR6OZVRxUHFQcVBz0teKwx3W+fN7Qlj//VFj5p/r148fCNncNL8ff9+Xz8Lcv0Z6jqwJ+/P2XaOWfalXAH58+Rdvgy7HXO2ufvI+WTbcVR/mn+hbHn1+/fts/4tjcNcTxqnEMpverPTbx+Nd/E0c0cYhDHL5WxCEOcYhDHOL4/8axaJ9cRcum24uj9FM9FcemrrGOwx5X/i1ntms09rqL9vFVtGxa/vRnu4Y4xCEOcdSIY7e7aB1fRcum5TiyXUMc4ijFMW8dX0bLpk/Fkesa4hCHOMQhDnG8aByduT2u/BvSbNdYx9E6uoyWTZ94OZJdQxziEIc4asUxax1dRMumT8WR6xriEEccx05n1jy6iJZNy3Fku4Y4xCEOcdSJoz1rDi+iZdMn4kh2jXUc9rjN/S/752xb11jFcdocnkfLppv71+fP0W1dQxziEIc4xCEOcYhDHOIQhzjeaBzftaaHg3fRsunbjGNb1xCHOIpxmFXOy0F9rVBxUHHQV4pjcjg4i0YzqzhoIY7m5LB/Fo1mVnFQcdAacTSaE7Pqrf4c9M+i0dTaaI4P+otoNLU6BxUHFQd9yTgOxwe9RTSaWp2DioPWiWN00JtHo6l1xWbV81mhpZdjvzePRlOrc1Bx0BpxHIz2u/NoNLU6By3EcbLfnUWjqdU5qDhorTjMquezQn2tUHHQl4xj/3ivcxqNplbnoOKg4qDioOKg247DrHqN/aO9zjQaTa3OQeM49o722tNoNLU6BxUHrRXHbnsajaZW56CFOIa77Uk0mlqdg5biMKuezwqNX47d4W5rEo2mVueg4qB14hjstsbRaGp1DioOWiuOndY4Gk2tzkFLcZhVr7Ez2GmOo9HU2tjp7zRH0WhqdQ4qDioOKg4qDioOKg7639K/AFjmJZKPMM4gAAAAAElFTkSuQmCC">
+<link rel="manifest" href="data:application/manifest+json;base64,eyJuYW1lIjoiU25ha2UiLCJzaG9ydF9uYW1lIjoiU25ha2UiLCJkZXNjcmlwdGlvbiI6IkNsYXNzaWMgU25ha2UgXHUyMDE0IHN3aXBlIHRvIHBsYXkuIiwic3RhcnRfdXJsIjoiLi9pbmRleC5odG1sIiwic2NvcGUiOiIuLyIsImRpc3BsYXkiOiJzdGFuZGFsb25lIiwib3JpZW50YXRpb24iOiJwb3J0cmFpdCIsImJhY2tncm91bmRfY29sb3IiOiIjMDIwNjE3IiwidGhlbWVfY29sb3IiOiIjMDIwNjE3IiwiaWNvbnMiOlt7InNyYyI6ImRhdGE6aW1hZ2UvcG5nO2Jhc2U2NCxpVkJPUncwS0dnb0FBQUFOU1VoRVVnQUFBTFFBQUFDMENBSUFBQUN5cjVGbEFBQUVMRWxFUVZSNDJ1M2JTMDZiWnhUSFlaZXI3emJnQzdZSmwyQklnVXFaZEFsWlJiYlFWV1FOSFhVQlVkZlFkWFFoM1VBSHRSVUpxZFYzWHFvUGpHblBJLzB6aUo0Sk92cjV0WVNTUm1meXdheHlqZmI0ZHJqNElSck5yT0tnNHFEaW9PS2c0cURpb0c4Mmpwdmg0aUVhemF5Tjl1aG1PSCtJUmpQck9nNnp5bms1YVB4eXRFWTNnL2xETkpwWnhVSEZRV3ZGc1J6TTc2UFJ6Q29PS2c1YUo0NlQ1V0IySDQxbVZuSFFZaHhtbGZOeTBOTExjVDJZM1VXam1WVWNOSTZqZVhMZG45MUZvNWxWSEZRY3RFNGN4OWY5MDd0b05MT0tnNWJpZU44Ly9UNGF6YXpyT013cTUrV2d4WmZET2FnNHFEaW9PT2pHNHpnOHV1cE5QMFNqbVZVY1ZCeFVIUFNGNHpDcm5KZUQrbHFodGVLNDdFMXZvOUhNS2c1YWlHTjQyWnZjUnFPWlZSeFVITFJHSEFmRHkrN2tOaHJOck9LZ3hUak1LcmVLNDZJN3VZbEdNNnM0cURob25UZ0dGOTN4VFRTYVdjVkJ4VUhGUVY4Mmp2UHVlQm1OWmxaeDBEaU8vY0c1V2VYV2NYVEd5MmcwczRxREZ1TG9uM2RHeTJnMHM0cURsdUo0MXhsZFI2T1pWUnhVSEZRY1ZCejB0ZUt3eDNXK2ZON1Fsai8vVkZqNXAvcjE0OGZDTm5jTkw4ZmY5K1h6OExjdjBaNmpxd0orL1AyWGFPV2ZhbFhBSDU4K1Jkdmd5N0hYTzJ1ZnZJK1dUYmNWUi9tbitoYkhuMSsvZnRzLzR0amNOY1R4cW5FTXB2ZXJQVGJ4K05kL0UwYzBjWWhESEw1V3hDRU9jWWhESE9MNC84YXhhSjljUmN1bTI0dWo5Rk05RmNlbXJyR093eDVYL2kxbnRtczA5cnFMOXZGVnRHeGEvdlJudTRZNHhDRU9jZFNJWTdlN2FCMWZSY3VtNVRpeVhVTWM0aWpGTVc4ZFgwYkxway9Ga2VzYTRoQ0hPTVFoRG5HOGFCeWR1VDJ1L0J2U2JOZFl4OUU2dW95V1RaOTRPWkpkUXh6aUVJYzRhc1V4YXgxZFJNdW1UOFdSNnhyaUVFY2N4MDVuMWp5NmlKWk55M0ZrdTRZNHhDRU9jZFNKb3oxckRpK2laZE1uNGtoMmpYVWM5cmpOL1MvNzUyeGIxMWpGY2RvY25rZkxwcHY3MStmUDBXMWRReHppRUljNHhDRU9jWWhESE9JUWh6amVhQnpmdGFhSGczZlJzdW5iakdOYjF4Q0hPSXB4bUZYT3kwRjlyVkJ4VUhIUVY0cGpjamc0aTBZenF6aG9JWTdtNUxCL0ZvMW1WbkZRY2RBYWNUU2FFN1BxcmY0YzlNK2kwZFRhYUk0UCtvdG9OTFU2QnhVSEZRZDl5VGdPeHdlOVJUU2FXcDJEaW9QV2lXTjAwSnRIbzZsMXhXYlY4MW1ocFpkanZ6ZVBSbE9yYzFCeDBCcHhISXoydS9Ob05MVTZCeTNFY2JMZm5VV2pxZFU1cURob3JUak1xdWV6UW4ydFVISFFsNHhqLzNpdmN4cU5wbGJub09LZzRxRGlvT0tnMjQ3RHJIcU4vYU85empRYVRhM09RZU00OW83MjJ0Tm9OTFU2QnhVSHJSWEhibnNhamFaVzU2Q0ZPSWE3N1VrMG1scWRnNWJpTUt1ZXp3cU5YNDdkNFc1ckVvMm1WdWVnNHFCMTRoanN0c2JSYUdwMURpb09XaXVPbmRZNEdrMnR6a0ZMY1poVnI3RXoyR21PbzlIVTJ0anA3elJIMFdocWRRNHFEaW9PS2c0cURpb09LZzc2MzlLL0FGam1KWktQTU00Z0FBQUFBRWxGVGtTdVFtQ0MiLCJzaXplcyI6IjE4MHgxODAiLCJ0eXBlIjoiaW1hZ2UvcG5nIiwicHVycG9zZSI6ImFueSJ9LHsic3JjIjoiZGF0YTppbWFnZS9wbmc7YmFzZTY0LGlWQk9SdzBLR2dvQUFBQU5TVWhFVWdBQUFnQUFBQUlBQ0FJQUFBQjdHa090QUFBU01FbEVRVlI0MnUzYVNXNWNWUlRIWWVPMitpcmIxYmlxSERkeEV4SWpaY0lTc2dxMndDcXlCa1lzSUdJTnJJT0ZzQUVHWE9FTUlvSUVpSE5DM1hjLzZRelIwL2Y4dCtvblY5Z2JMbDg1NTV4cjhQWUdpMGZubkhNTjNzY0F6TGJmeEY3R1kxRlJ2VDRxYXVBSkFLb0FXQXBWQUV5RktnQ29xQUpnS2xRQlFFVVZBRk9oQ2dBcXFnQ1lDbFVBVUZFRndGU29Bb0NLS2dDbVFoVUFWRlFCTUJXcUFLQ2lDb0NwVUFVQUZWVUFUSVhxOVZGUkJjQlVxRjRmRlZVQVRJWHE5VkZSQmNCVXFGNGZGVlVBVElYcTlWRlJCY0JVcUY0ZkZWVUFUSVhxOVZGUkJRQVYxZXVqb2dvQUtxclhSMFg5andGNEtEZmJQc1ZleG1OUlViMCtLbXJnQ1FDcUFGZ0tWUUJNaFNvQXFLZ0NZQ3BVQVVCRkZRQlRvUW9BS21wWEF6Qi9LRGZiUE1WZXhtTlJVYjArS21yZ0NRQ3FBRmdLVlFCTWhTb0FxS2dOQnNBNTUxeHJKd0RPT2RkMkFQeXhodW9ySUZSVS93WmdLbFFCUUVVVkFGT2hDZ0FxcWdDWUNsVUFVRkc3Rm9EKy9LSGNkUE1VZXhtUFJVWDErcWlvZ1NjQXFBSmdLVlFCTUJXcUFLQ2lDb0NwVUFVQUZWVUFUSVVxQUtpb0FtQXFWQUZBUmUxV0FPN0xUVGR2WWkvanNhaW9YaDhWTmZBRUFGVUFMSVVxQUtaQ0ZRQlVWQUV3RmFvQW9LSUtnS2xRQlFBVlZRQk1oU29BcUtnQ1lDcFVBVUJGRlFCVG9Rb0FLcW9BbUFwVkFGQlJCY0JVcUFLQWlpb0Fwa0wxK3Fpb3V4bUE4L3R5MC9XYjJNdDRMQ3FxMTBkRkRUd0JRQlVBUzZFS2dLbFFCUUFWVlFCTWhTb0FxS2dDWUNwVUFVQkY3WFFBbkhQT3RYWUM0Snh6YlFmQUgydW92Z0pDUmZWdkFLWkNGUUJVVkFFd0Zhb0FvS0oyT2dCMzVhYnIxN0dYOFZoVVZLK1BpaHA0QW9BcUFKWkNGUUJUb1FvQUtxb0FtQXBWQUZCUkJjQlVxQUtBaWlvQXBrSVZBRlJVQVRBVnFnQ2dvbFlmZ043NVhibkorblhzWlR3V0ZkWHJvNklHbmdDZ0NvQ2xVQVhBVktnQ2dJb3FBS1pDRlFCVVZBRXdGYW9Bb0tJS2dLbFFCUUFWVlFCTWhTb0FxS2dDWUNwVUFVQkZyVFFBWjNmbEpoZXZZeS9qc2Fpb1hoOFZOZkFFQUZVQUxJVXFBS1pDRlFCVVZBRXdGYW9Bb0tJS2dLbFFCUUFWdGJNQmVGbHVjdkYxN0dVOEZoWFY2Nk9pQnA0QW9BcUFwVkFGd0ZTb0FvQ0tLZ0NtUWhVQVZOUldBdUNjYzY2MUV3RG5uR3M3QVA1WVEvVVZFQ3FxZndNd0Zhb0FvS0lLZ0tsUUJRQVZWUUJNaFNvQXFLZ0NZQ3BVQVVCRkZRQlRvUW9BS3FvQW1BcFZBRkJSQmNCVXFBS0FpaW9BcGtMMStxaW9BbUFxVksrUGlpb0Fwa0wxK3Fpb0FtQXFWSytQaWlvQXBrTDErcWlvQW1BcVZLK1BpaW9BcGtMMStxaW9TUUU0T2IwdE4xNjlpcjJNeDZLaWVuMVUxTUFUQUZRQnNCU3FBSmdLVlFCUVVRWEFWS2dDZ0lvcUFLWkNGUUJVVkFFd0Zhb0FvS0lLZ0tsUUJRQVZWUUJNaFNvQXFLZ0NZQ3BVQVVCRkZRQlRvUW9BS3FvQW1BclY2Nk9pN25BQW5IUE90WFlDNEp4emJRZkFIMnVvdmdKQ1JmVnZBS1pDRlFCVVZBRXdGYW9Bb0tJS2dLbFFCUUFWVlFCTWhTb0FxS2dDWUNwVUFVQkZGUUJUb1FvQUttcDFBYmdwTjE0OXhsN0dZMUZSdlQ0cWF1QUpBS29BV0FwVkFFeUZLZ0NvcUFKZ0tsUUJRRVVWQUZPaENnQXFhbGNETUxzcE4xNCt4bDdHWTFGUnZUNHFhdUFKQUtvQVdBcFZBRXlGS2dDb3FBSmdLbFFCUUVVVkFGT2hDZ0FxcWdDWUNsVUFVRkVGd0ZTb0FvQ0tLZ0NtUWhVQVZGUUJNQldxQUtDaVZoU0E0OWxOdWRIeU1mWXlIb3VLNnZWUlVRTlBBRkFGd0ZLb0FtQXFWQUZBUlJVQVU2RUtBQ3FxQUpnS1ZRQlFVUVhBVktnQ2dJcmF2UUE0NTV4cjdVb0FycDF6empWNEh3TXdXajdFWHNaalVWRzlQaXBxNEFrQXFnQllDbFVBVElVcUFLaW9BbUFxVkFGQVJSVUFVNkVLQUNxcUFKZ0tWUUJRVVFYQVZLZ0NnSW9xQUtaQ0ZRQlVWQUV3RmFvQW9LTFdGSURwZGJuUjRpSDJNaDZMaXVyMVVWRURUd0JRQmNCU3FBSmdLbFFCUUVVVkFGT2hDZ0FxcWdDWUNsVUFVRkVGd0ZTb0FvQ0tLZ0NtUWhVQVZGUUJNQldxQUtDaUNvQ3BVQVVBRlZVQVRJVXFBS2lvdXgrQXEzS2p4WDNzWlR3V0ZkWHJvNklHbmdDZ0NvQ2xVQVhBVktnQ2dJb3FBS1pDRlFCVVZBRXdGYW9Bb0tJS2dLbFFCUUFWVlFCTWhTb0FxS2pWQitCb2V1V2NjNjdCRXdEbm5HczdBTVBGZmV4bFBCWVYxZXVqb2dhZUFLQUtnS1ZRQmNCVXFBS0FpaW9BcGtJVkFGUlVBVEFWcWdDZ29ncUFxVkFGQUJXMVV3R1lYSlVienU5akwrT3hxS2hlSHhVMThBUUFWUUFzaFNvQXBrSVZBRlJVQVRBVnFnQ2dvZ3FBcVZBRkFCVzFzd0Y0VVc0NHY0dTlqTWVpb25wOVZOVEFFd0JVQWJBVXFnQ1lDbFVBVUZFRndGU29Bb0NLS2dDbVFoVUFWRlFCTUJXcUFLQ2lDb0NwVUFVQUZWVUFUSVVxQUtpb0FtQXFWQUZBUlJVQVU2RUtBQ3FxQUpnSzFldWpvZ3FBcVZDOVBpcXFBSmdLMWV1am9ncUFxVkM5UGlxcUFKZ0sxZXVqb2dxQXFWQzlQaXJxbHdpQWMyM2U4UDEzamQvOUQ5K0hYOUpZUDcxOUczNk4vLzRMZ0JNQUFSQ0F0Z1BnanpYVVJxbC9mQWpPZm40ZmV4bVBUYUkrZjJSLys4dVBnWmYwUy9YOGtmM3J1M2VCNXlzZ0gxV29BaUFBOVFYZ3R3OGYvdklFUUFCUVVRVkFBQVRnN3dKd09MNHNOemgvR1hzWmowVkZEWCttQUdRRUlPbVhLaU1BamYvK0N3Q3FBQWlBQUFpQWp5cFVBUkFBQVJBQUgxV29BdEJzQUthck41L2U1NS92Zi9vUFB2OXZ2a3dBUWs0QWZGU2hDb0FBQ0lBQStLaENGUUFCRUFBQjhGR0ZLZ0FDSUFBQzRLTUtWUUFFUUFBRXdFY1ZxZ0Q0djRCMjQvOENFZ0FCUUVVVkFBRVFBQUZBUlJVQUFSQUFBVUJGRlFBQkVBQUJRRVVWQUFFUUFBRkFSUlVBQVJBQUFVQkZGUUFCRUFBQlFCVUFBUkFBQWZCUmhTb0FBaUFBQXVDakNsVUFCRUFBQk1CSEZhb0FDSUFBQ0lDUEtsUUJFQUFCNkZZQXR1VUc1N2V4bC9GWVZOVHdad3BBVGdCU2ZxbHlBdEQwNzc4QW9BcUFBQWlBQVBpb1FoVUFBUkNBQmdQZ1hKdjMvS2thZm42d3Jvb1RBQ2NBQXVDYURjQm9XMjV3ZGh0N0dZOUZSUTEvWnRMM0twWkNyWUlxQUtnQ0lBQ29BbUFxVkFFUUFGUUJNQldxQUFnQXFnQ1lDbFVBQkFCVkFFeUZLZ0FDZ0NvQXBrSVZBQUZBRlFCVG9RcUFBS0FLZ0tsUUJVQUFVQ3NLd01Gb1c2NS9kaHQ3R1k5RlJRMS9abElBTElWYUJWVUFVQVZBQUZBRndGU29BaUFBcUFKZ0tsUUJFQUJVQVRBVnFnQUlBS29BbUFwVkFBUUFWUUJNaFNvQUFvRGFnUUJzeXZYUGJtSXY0N0dvcU9IUFRBdUFwVkFyb0FvQXFnQUlBS29BbUFwVkFBUUFWUUJNaFNvQUFvQXFBS1pDRlFBQlFCVUFVNkVLZ0FDZ0NvQ3BVQVZBQUZBRndGU29BaUFBcUFKZ0tsUUJFQUJVQVRBVnFnQllDblhuQXpEY09OZnNQUWNnL1B4Z1hSVW5BRTRBQk1DMUhZRCs2VTNzWlR3V0ZUWDhtVmxmQVZrS3RRYXFBS0FLZ0FDZ0NvQ3BVQVZBQUZBRndGU29BaUFBcUFKZ0tsUUJFQUJVQVRBVnFnQUlBS29BbUFwVkFBUUFWUUJNaFNvQUFvQmFhd0RXNWZxbjE3R1g4VmhVMVBCbnBnWEFVcWdWVUFVQVZRQUVBRlVBVElVcUFBS0FLZ0NtUWhVQUFVQVZBRk9oQ29BQW9BcUFxVkFGUUFCUUJjQlVxQUlnQUtqVkIyQi91QzdYTzcyT3ZZekhvcUtHUHpNcEFKWkNyWUlxQUtnQ0lBQ29BbUFxVkFFUUFGUUJNQldxQUFnQXFnQ1lDbFVBQkFCVkFFeUZLZ0FDZ0NvQXBrSVZBQUZBRlFCVG9RcUFBS0FLZ0tsUUJVQUFVR3NLd0dCZHJqZTdqcjJNeDZLaWhqOHpLd0NXUXEyQktnQ29BaUFBcUFKZ0tsUUJFQURVQmdQZ1hKdjNIQUJYeGZsMURUOEJjQUxnQktEZEFGeVU2ODJ1WWkvanNhaW80YzlNK2dvbzQ3R29mdi9EbnlrQXFBSWdBQUlnQUQ2cVVBVkFBQVJBQUh4VW9RcUFBQWlBQVBpb1FoVUFBUkFBQWZCUmhTb0FBaUFBQXVDakNsVUFCRUFBQk1CSEZhb0FDSUFBQ0lDUEtsUUJFQUFCRUFCVG9RcUFBQWlBQUpnS1ZRQUVRQUFFd0ZTb0FpQUFBaUFBcGtJVkFBRVFBQUV3RmFvQUNJQUFDSUNwVUFWQUFBUkFBRXlGS2dBQ0lBQUNZQ3BVQVJBQUFSQUFWRlFCRUFDLy93S0FpaW9BQXVEM1h3QlFVUVZBQVB6Ky8vc0FmTlZmbFR1WnZvaTlqTWVpb29ZLzA2ZHFSVlMvLytIUEZBQlVBUkFBQVJBQUgxV29BaUFBQWlBQVBxcFFCVUFBQkVBQWZGU2hDb0FBQ0lBQStLaENGUUFCRUlEdUJjQTU1MXhySndET09kZDJBSHhaZ2RvbTFWS292Z0l5RmFvQW9LSUtnS2xRQlFBVlZRQk1oU29BcUtnQ1lDcFVBVUJGRlFCVG9Rb0FLcW9BbUFwVkFGQlJCY0JVcUFLQWlpb0Fwa0lWQUZSVUFUQVZxdGRIUlJVQVU2RjZmVlJVQVRBVnF0ZEhSUlVBVTZGNmZWVFUvekVBeTNJbjA4dll5M2dzS3FyWFIwVU5QQUZBRlFCTG9RcUFxVkFGQUJWVkFFeUZLZ0NvcUFKZ0tsUUJRRVh0YWdCNnkzSW5rOHZZeTNnc0txclhSMFVOUEFGQUZRQkxvUXFBcVZBRkFCVlZBRXlGS2dDb3FBSmdLbFFCUUVVVkFGT2hDZ0FxcWdDWUNsVUFVRkVGd0ZTb0FvQ0tXbWNBOW5yTGNzZVR5OWpMZUN3cXF0ZEhSWTE4NXZORG5YUE9OWGQrQk00NTEzUUEvTEdHNmlzZ1ZOUkd2d0l5RmFvQW9LSUtnS2xRQlFBVlZRQk1oU29BcUtpZERzQ2kzUEZrRzNzWmowVkY5ZnFvcUpIUE5CV3FBRmdLVlFCTWhTb0FxS2dDWUNwVUFVQkZGUUJUb1FvQUtxb0FtQXBWQUZCUkJjQlVxQUtBaWlvQXBrSVZBRlJVQVRBVnFnQ2dvZ3FBcVZBRkFCVjExd053c2loM1BON0dYc1pqVVZHOVBpcHE1RE5OaFNvQWxrSVZBRk9oQ2dBcXFnQ1lDbFVBVUZFRndGU29Bb0NLS2dDbVFoVUFWRlFCTUJXcUFLQ2lDb0NwVUFVQUZWVUFUSVVxQUtpb0FtQXFWQUZBUmQzNUFNekxIWTgzc1pmeFdGUlVyNCtLR3ZsTVU2RUtnS1ZRbXc2QWM4NjU1czZQd0Rubm1nNkFQOVpRZlFXRWl1cmZBRXlGS2dDb3FBSmdLbFFCUUVYdGZBQ094cHZZeTNnc0txclhSMFdOZkthcFVBWEFVcWdDWUNwVUFVQkZGUUJUb1FvQUtxb0FtQXBWQUZCUkJjQlVxQUtBaWlvQXBrSVZBRlJVQVRBVnFnQ2dvZ3FBcVZBRkFCVzFvZ0FjejhzZGpUYXhsL0ZZVkZTdmo0b2ErVXhUb1FxQXBWQUZ3RlNvQW9DS0tnQ21RaFVBVkZRQk1CV3FBS0NpZGpVQTUrV09SdXZZeTNnc0txclhSMFdOZkthcFVBWEFVcWdDWUNwVUFVQkZGUUJUb1FvQUtxb0FtQXBWQUZCUkJjQlVxQUtBaWlvQXBrSVZBRlJVQVRBVnFnQ2dvZ3FBcVZBRkFCVlZBRXlGS2dDb3FGVUV3RG5uWEhQblIrQ2NjMDBId0I5cnFMNENRa1gxYndDbVFoVUFWRlFCTUJXcUFLQ2lDb0NwVUFVQUZWVUFUSVVxQUtpb0FtQXFWQUZBUlJVQVU2RUtBQ3FxQUpnS1ZRQlFVYXNJd05GWnVjUGhSZXhsUEJZVjFldWpva1krMDFTb0FtQXBWQUV3RmFvQW9LSUtnS2xRQlFBVlZRQk1oU29BcUtnQ1lDcFVBVUJGRlFCVG9Rb0FLcW9BbUFwVkFGQlJCY0JVcUFLQWlpb0Fwa0lWQUZSVUFUQVZxdGRIUlJVQVU2RjZmVlJVQVRBVnF0ZEhSUlVBVTZGNmZWUlVBVEFWcXRkSFJSVUFVNkY2ZlZSVUFUQVZxdGRIUlJVQVZGU3ZqNG9hR2dEbm5IUE5uUitCYzg0MUhRQi9yS0g2Q2dnVnRjR3ZnRTdMSFE1WHNaZnhXRlJVcjQrS0d2bE1VNkVLZ0tWUUJjQlVxQUtBaWlvQXBrSVZBRlJVQVRBVnFnQ2dvblkwQUllbjVRNEhxOWpMZUN3cXF0ZEhSWTE4cHFsUUJjQlNxQUpnS2xRQlFFVVZBRk9oQ2dBcXFnQ1lDbFVBVUZFRndGU29Bb0NLS2dDbVFoVUFWRlFCTUJXcUFLQ2lWaHlBZzhFcTlqSWVpNHJxOVZGUkk1OXBLbFFCc0JTcUFKZ0tWUUJRVVFYQVZLZ0NnSW9xQUtaQ0ZRQlVWQUV3RmFvQW9LSUtnS2xRQlFBVnRmNEF6TW9kREpheGwvRllWRlN2ajRvYStVeFRvUXFBcFZBRndGU29Bb0NLS2dDbVFoVUFWRlFCTUJXcUFLQ2lDb0NwVUFVQUZiVnpBWERPT2RmYytSRTQ1MXpUQWZESEdxcXZnRkJSL1J1QXFWQUZBQlcxa1FBY3pNb2Q5SmV4bC9GWVZGU3ZqNG9hK1V4VG9RcUFwVkFGd0ZTb0FvQ0tLZ0NtUWhVQVZGUUJNQldxQUtDaUNvQ3BVQVVBRlZVQVRJVXFBS2lvQW1BcVZBRkFSUlVBVTZFS0FDcXFBSmdLVlFCUVVRWEFWS2hlSHhWMU53TXdMWGZRWDhSZXhtTlJVYjArS21ya00wMkZLZ0NXUWhVQVU2RUtBQ3FxQUpnS1ZRQlFVUVhBVktnQ2dJb3FBS1pDRlFCVTFNNEZZTCsvaUwyTXg2S2llbjFVMU1obm1ncFZBQ3lGS2dDbVFoVUFWRlFCTUJXcUFLQ2lDb0NwVUFVQUZWVUFUSVVxQUtpb0FtQXFWQUZBUmUxR0FKeHp6alYzZmdUT09kZHFBUGFuNWZaN2k5akxlQ3dxcXRkSFJZMThwcWxRQmNCU3FBSmdLbFFCUUVVVkFGT2hDZ0FxcWdDWUNsVUFVRkc3R29CSnVmM2VQUFl5SG91SzZ2VlJVU09mYVNwVUFiQVVxZ0NZQ2xVQVVGRUZ3RlNvQW9DS0tnQ21RaFVBVkZRQk1CV3FBS0NpQ29DcFVBVUFGVlVBVElVcUFLaW9BbUFxVkFGQVJSVUFVNkVLQUNxcUFKZ0sxZXVqb2dxQXFWQzlQaXFxQUpnSzFldWpvZ3FBcVZDOVBpcXFBSmdLMWV1am9ncUFxVkM5UGlxcUFKZ0sxZXVqb2dvQUtxclhSMFVWQUZSVXI0K0tLZ0NvcUY0ZkZWVUFVRkc5UGlycVA3cmZBUnNtUmN4OUk0cG1BQUFBQUVsRlRrU3VRbUNDIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlwZSI6ImltYWdlL3BuZyIsInB1cnBvc2UiOiJhbnkgbWFza2FibGUifV19">
+<style>
+  :root{
+    --bg0:#0f172a; --bg1:#020617;
+    --emerald:#34d399; --emerald2:#10b981;
+    --board:#0b1220; --text:#e2e8f0; --muted:#64748b; --red:#ef4444;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%; margin:0; -webkit-text-size-adjust:100%;}
+  html{background:#020617;}
+  body{
+    position:fixed; inset:0; overflow:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--text);
+    background:radial-gradient(125% 125% at 50% 0%, #0f172a 0%, #020617 60%);
+    overscroll-behavior:none; touch-action:none;
+    user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;
+  }
+  #app{
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    padding:calc(env(safe-area-inset-top) + 6px) calc(env(safe-area-inset-right) + 12px)
+            calc(env(safe-area-inset-bottom) + 6px) calc(env(safe-area-inset-left) + 12px);
+  }
+  #hud{display:flex; align-items:center; gap:10px; padding:4px 2px 10px;}
+  .brand{font-weight:700; font-size:18px; letter-spacing:.5px; flex:0 0 auto;}
+  .scores{display:flex; gap:8px; margin-left:auto;}
+  .score{
+    background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08);
+    border-radius:12px; padding:6px 12px; min-width:62px; text-align:center;
+    display:flex; flex-direction:column; line-height:1.15;
+  }
+  .score .label{font-size:9px; color:var(--muted); letter-spacing:1.5px;}
+  .score .val{font-size:18px; font-weight:700; font-variant-numeric:tabular-nums;}
+  .icon-btn{
+    flex:0 0 auto; width:40px; height:40px; border-radius:12px;
+    background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08);
+    color:var(--text); font-size:13px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .icon-btn:active{transform:scale(.94);}
+  #stage{flex:1 1 auto; position:relative; display:flex; align-items:center; justify-content:center; min-height:0;}
+  #board{
+    position:relative; width:var(--size,300px); height:var(--size,300px);
+    border-radius:18px; background:var(--board); overflow:hidden; touch-action:none;
+    box-shadow:0 12px 44px rgba(0,0,0,.55), inset 0 0 0 1px rgba(255,255,255,.06);
+  }
+  canvas#game{display:block; width:100%; height:100%;}
+  .overlay{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    text-align:center; padding:22px; background:rgba(2,6,23,.78);
+    backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+    transition:opacity .2s ease;
+  }
+  .overlay.hidden{opacity:0; pointer-events:none;}
+  .panel h1{margin:0 0 10px; font-size:34px; letter-spacing:1px;}
+  .panel p{margin:0 0 22px; color:#cbd5e1; font-size:15px; line-height:1.55;}
+  .btn{
+    appearance:none; -webkit-appearance:none; border:none; cursor:pointer;
+    background:linear-gradient(180deg,var(--emerald),var(--emerald2));
+    color:#03261b; font-weight:800; font-size:17px; letter-spacing:.5px;
+    padding:14px 40px; border-radius:14px; box-shadow:0 8px 24px rgba(16,185,129,.35);
+  }
+  .btn:active{transform:translateY(1px) scale(.99);}
+  #foot{text-align:center; color:var(--muted); font-size:11px; padding:8px 0 2px;}
+  @media (max-height:560px){ .brand{display:none;} #foot{display:none;} }
+</style>
+</head>
+<body>
+  <div id="app">
+    <header id="hud">
+      <div class="brand">🐍 Snake</div>
+      <div class="scores">
+        <div class="score"><span class="label">SCORE</span><span class="val" id="score">0</span></div>
+        <div class="score"><span class="label">BEST</span><span class="val" id="best">0</span></div>
+      </div>
+      <button id="pauseBtn" class="icon-btn" aria-label="Pause">❚❚</button>
+    </header>
+    <main id="stage">
+      <div id="board">
+        <canvas id="game"></canvas>
+        <div id="overlay" class="overlay">
+          <div class="panel">
+            <h1 id="ovTitle">Snake</h1>
+            <p id="ovText">Swipe to move • eat the apples<br>Don't hit the walls or yourself.</p>
+            <button id="playBtn" class="btn">Play</button>
+          </div>
+        </div>
+      </div>
+    </main>
+    <footer id="foot">Swipe to steer • arrow keys on desktop • tap board to pause</footer>
+  </div>
+
+<script>
+(function(){
+  "use strict";
+  var GRID = 19, START_LEN = 3, BASE_SPEED = 150, MIN_SPEED = 70, SPEED_STEP = 4, SWIPE = 22;
+
+  var canvas = document.getElementById('game'),
+      ctx = canvas.getContext('2d'),
+      board = document.getElementById('board'),
+      stage = document.getElementById('stage'),
+      scoreEl = document.getElementById('score'),
+      bestEl = document.getElementById('best'),
+      overlay = document.getElementById('overlay'),
+      ovTitle = document.getElementById('ovTitle'),
+      ovText = document.getElementById('ovText'),
+      pauseBtn = document.getElementById('pauseBtn');
+
+  var cell = 16, snake, dir, queue, food, score = 0, best = 0, speed = BASE_SPEED,
+      state = 'start', lastStep = 0;
+
+  try { best = parseInt(localStorage.getItem('snakeBest') || '0', 10) || 0; } catch(e){ best = 0; }
+  bestEl.textContent = best;
+
+  // ---------- sizing ----------
+  function resize(){
+    var rect = stage.getBoundingClientRect();
+    var size = Math.max(120, Math.floor(Math.min(rect.width, rect.height)));
+    board.style.setProperty('--size', size + 'px');
+    var dpr = Math.min(window.devicePixelRatio || 1, 3);
+    canvas.width = Math.round(size * dpr);
+    canvas.height = Math.round(size * dpr);
+    cell = canvas.width / GRID;
+    draw();
+  }
+
+  // ---------- game state ----------
+  function reset(){
+    snake = [];
+    var c = Math.floor(GRID / 2);
+    for (var i = 0; i < START_LEN; i++) snake.push({ x: c - i, y: c });
+    dir = { x: 1, y: 0 };
+    queue = [];
+    score = 0; speed = BASE_SPEED;
+    scoreEl.textContent = score;
+    placeFood();
+  }
+
+  function placeFood(){
+    var occ = {}, k;
+    for (var i = 0; i < snake.length; i++) occ[snake[i].x + ',' + snake[i].y] = 1;
+    if (snake.length >= GRID * GRID) { win(); return; }
+    var p;
+    do { p = { x: (Math.random() * GRID) | 0, y: (Math.random() * GRID) | 0 }; k = p.x + ',' + p.y; }
+    while (occ[k]);
+    food = p;
+  }
+
+  function setDir(nx, ny){
+    var ref = queue.length ? queue[queue.length - 1] : dir;
+    if (ref.x === -nx && ref.y === -ny) return; // no 180-degree reversal
+    if (ref.x === nx && ref.y === ny) return;   // no duplicate
+    if (queue.length < 2) queue.push({ x: nx, y: ny });
+  }
+
+  function step(){
+    if (queue.length) dir = queue.shift();
+    var head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+    if (head.x < 0 || head.y < 0 || head.x >= GRID || head.y >= GRID) return gameOver();
+    var ate = (head.x === food.x && head.y === food.y);
+    var limit = ate ? snake.length : snake.length - 1; // tail vacates unless eating
+    for (var i = 0; i < limit; i++) if (snake[i].x === head.x && snake[i].y === head.y) return gameOver();
+    snake.unshift(head);
+    if (ate){
+      score++; scoreEl.textContent = score;
+      if (score > best){ best = score; bestEl.textContent = best; try { localStorage.setItem('snakeBest', best); } catch(e){} }
+      speed = Math.max(MIN_SPEED, BASE_SPEED - score * SPEED_STEP);
+      placeFood();
+    } else {
+      snake.pop();
+    }
+  }
+
+  // ---------- drawing ----------
+  function roundRect(x, y, w, h, r){
+    if (r > w / 2) r = w / 2; if (r > h / 2) r = h / 2;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+  function rectFor(c){
+    var gap = Math.max(1, cell * 0.08);
+    return [c.x * cell + gap / 2, c.y * cell + gap / 2, cell - gap, cell - gap];
+  }
+
+  function draw(){
+    var W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#0b1220'; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = 'rgba(255,255,255,0.035)'; ctx.lineWidth = 1;
+    for (var i = 1; i < GRID; i++){
+      ctx.beginPath(); ctx.moveTo(i * cell, 0); ctx.lineTo(i * cell, H); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, i * cell); ctx.lineTo(W, i * cell); ctx.stroke();
+    }
+    if (!snake) return;
+
+    // food
+    var f = rectFor(food), fr = Math.min(f[2], f[3]) / 2;
+    ctx.save();
+    ctx.shadowColor = 'rgba(239,68,68,.6)'; ctx.shadowBlur = cell * 0.4;
+    ctx.fillStyle = '#ef4444';
+    roundRect(f[0], f[1], f[2], f[3], fr); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = 'rgba(255,255,255,.55)';
+    ctx.beginPath(); ctx.arc(f[0] + f[2] * 0.33, f[1] + f[3] * 0.3, Math.max(1, cell * 0.09), 0, Math.PI * 2); ctx.fill();
+
+    // snake (tail first so head draws on top)
+    var n = snake.length;
+    for (var s = n - 1; s >= 0; s--){
+      var seg = snake[s], r = rectFor(seg), t = n > 1 ? s / (n - 1) : 0;
+      if (s === 0){ ctx.fillStyle = '#34d399'; }
+      else {
+        var g = Math.round(120 + (1 - t) * 20);
+        ctx.fillStyle = 'rgb(' + Math.round(16 + (1 - t) * 24) + ',' + Math.round(170 + (1 - t) * 30) + ',' + g + ')';
+      }
+      roundRect(r[0], r[1], r[2], r[3], Math.max(2, cell * 0.22)); ctx.fill();
+    }
+    drawEyes();
+  }
+
+  function drawEyes(){
+    var r = rectFor(snake[0]), x = r[0], y = r[1], w = r[2], h = r[3];
+    var rad = Math.max(1.5, cell * 0.11), F = 0.3, B = 0.7, e1x, e1y, e2x, e2y;
+    if (dir.x === 1){ e1x = e2x = x + w * B; e1y = y + h * F; e2y = y + h * B; }
+    else if (dir.x === -1){ e1x = e2x = x + w * F; e1y = y + h * F; e2y = y + h * B; }
+    else if (dir.y === -1){ e1y = e2y = y + h * F; e1x = x + w * F; e2x = x + w * B; }
+    else { e1y = e2y = y + h * B; e1x = x + w * F; e2x = x + w * B; }
+    ctx.fillStyle = '#06281d';
+    ctx.beginPath(); ctx.arc(e1x, e1y, rad, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(e2x, e2y, rad, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // ---------- loop ----------
+  function loop(ts){
+    requestAnimationFrame(loop);
+    if (state !== 'playing') return;
+    if (!lastStep) lastStep = ts;
+    if (ts - lastStep >= speed){ lastStep = ts; step(); if (state === 'playing') draw(); }
+  }
+
+  // ---------- overlays / transitions ----------
+  function showOverlay(title, html, btn){
+    ovTitle.textContent = title; ovText.innerHTML = html;
+    document.getElementById('playBtn').textContent = btn;
+    overlay.classList.remove('hidden');
+  }
+  function startGame(){
+    reset(); state = 'playing'; lastStep = 0;
+    overlay.classList.add('hidden'); pauseBtn.textContent = '❚❚'; draw();
+  }
+  function gameOver(){
+    state = 'over';
+    showOverlay('Game Over', 'Score <b>' + score + '</b> &nbsp;•&nbsp; Best <b>' + best + '</b>', 'Play Again');
+  }
+  function win(){
+    state = 'over';
+    showOverlay('You Win! 🎉', 'A perfect board — score <b>' + score + '</b>', 'Play Again');
+  }
+  function togglePause(){
+    if (state === 'playing'){ state = 'paused'; pauseBtn.textContent = '▶'; showOverlay('Paused', 'Tap Resume to continue.', 'Resume'); }
+    else if (state === 'paused'){ state = 'playing'; lastStep = 0; pauseBtn.textContent = '❚❚'; overlay.classList.add('hidden'); }
+  }
+  function activate(){ if (state === 'paused') togglePause(); else startGame(); }
+
+  // ---------- input ----------
+  overlay.addEventListener('click', function(e){ e.preventDefault(); if (!overlay.classList.contains('hidden')) activate(); });
+  pauseBtn.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); if (state === 'playing' || state === 'paused') togglePause(); });
+
+  window.addEventListener('keydown', function(e){
+    var k = e.key;
+    if (k === 'ArrowUp' || k === 'w' || k === 'W') setDir(0, -1);
+    else if (k === 'ArrowDown' || k === 's' || k === 'S') setDir(0, 1);
+    else if (k === 'ArrowLeft' || k === 'a' || k === 'A') setDir(-1, 0);
+    else if (k === 'ArrowRight' || k === 'd' || k === 'D') setDir(1, 0);
+    else if (k === ' ' || k === 'Enter'){ if (state === 'playing' || state === 'paused') togglePause(); else startGame(); e.preventDefault(); return; }
+    else return;
+    if (state === 'start' || state === 'over') startGame();
+    e.preventDefault();
+  }, { passive: false });
+
+  var sx = 0, sy = 0, moved = false, st = 0;
+  board.addEventListener('touchstart', function(e){
+    var t = e.changedTouches[0]; sx = t.clientX; sy = t.clientY; moved = false; st = Date.now();
+  }, { passive: true });
+  board.addEventListener('touchmove', function(e){
+    e.preventDefault();
+    if (state !== 'playing') return;
+    var t = e.changedTouches[0], dx = t.clientX - sx, dy = t.clientY - sy;
+    if (Math.abs(dx) < SWIPE && Math.abs(dy) < SWIPE) return;
+    if (Math.abs(dx) > Math.abs(dy)) setDir(dx > 0 ? 1 : -1, 0); else setDir(0, dy > 0 ? 1 : -1);
+    sx = t.clientX; sy = t.clientY; moved = true;
+  }, { passive: false });
+  board.addEventListener('touchend', function(e){
+    if (!moved && Date.now() - st < 300 && state === 'playing') togglePause();
+  }, { passive: true });
+
+  document.addEventListener('touchmove', function(e){ e.preventDefault(); }, { passive: false });
+  document.addEventListener('gesturestart', function(e){ e.preventDefault(); });
+  document.addEventListener('dblclick', function(e){ e.preventDefault(); });
+
+  // ---------- init ----------
+  window.addEventListener('resize', resize);
+  window.addEventListener('orientationchange', function(){ setTimeout(resize, 150); });
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', resize);
+
+  resize();
+  showOverlay('Snake', 'Swipe to move • eat the apples<br>Don\'t hit the walls or yourself.', 'Play');
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
