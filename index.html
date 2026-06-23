@@ -99,7 +99,7 @@
   .lcd-btn:active{background:transparent; color:var(--ink);}
   /* ---- on-screen pause button (floats over the LCD, not part of the D-pad) ---- */
   #pauseBtn{
-    position:absolute; top:6px; right:6px; z-index:6;
+    position:absolute; bottom:6px; right:6px; z-index:6;
     display:none; align-items:center; justify-content:center; gap:4px;
     width:30px; height:30px; padding:0;
     background:rgba(31,42,20,.10); border:1.5px solid rgba(31,42,20,.55);
@@ -112,41 +112,58 @@
   /* hit area extends past the artwork — miss above/below and still "hit" */
   #pauseBtn::after{content:""; position:absolute; inset:-16px -14px;}
 
-  /* ---- D-pad ---- */
+  /* ---- D-pad (SNES-style: dark cross on a lighter, fully-tappable plate) ---- */
   #pad{
     position:relative; flex:0 0 auto; align-self:center;
-    display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,1fr);
-    gap:0; width:min(64vw,220px); aspect-ratio:1/1; max-height:36vh;
-    filter:drop-shadow(0 4px 5px rgba(0,0,0,.5));
+    width:min(64vw,220px,38vh); aspect-ratio:1/1; border-radius:26%;
+    background:linear-gradient(157deg,#e2e5ea,#c0c5cc);
+    box-shadow:inset 0 2px 3px rgba(255,255,255,.75),
+               inset 0 -7px 16px rgba(0,0,0,.28),
+               0 6px 14px rgba(0,0,0,.5);
   }
-  .key{
-    position:relative; appearance:none; border:none; cursor:pointer; font-family:inherit;
-    display:flex; align-items:center; justify-content:center;
-    color:var(--cap); font-size:25px; line-height:1; font-weight:700;
-    background:linear-gradient(180deg,var(--key-0),var(--key-1));
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
+  /* the lighter plate is split into four triangular hit zones meeting in the
+     middle — tapping anywhere on the plate counts, which shrinks mis-taps */
+  .zone{
+    position:absolute; inset:0; margin:0; padding:0; border:0;
+    background:transparent; cursor:pointer; -webkit-tap-highlight-color:transparent;
   }
-  .key:active{filter:brightness(.82); box-shadow:inset 0 2px 7px rgba(0,0,0,.5);}
-  /* cross arms — rounded only on the outer corners, arrow tucked toward the centre */
-  #k-up   {grid-area:1/2/2/3; border-radius:15px 15px 0 0; align-items:flex-end;  padding-bottom:7px;}
-  #k-down {grid-area:3/2/4/3; border-radius:0 0 15px 15px; align-items:flex-start; padding-top:7px;}
-  #k-left {grid-area:2/1/3/2; border-radius:15px 0 0 15px; justify-content:flex-end;   padding-right:7px;}
-  #k-right{grid-area:2/3/3/4; border-radius:0 15px 15px 0; justify-content:flex-start; padding-left:7px;}
-  /* centre hub */
-  #k-ok{
-    grid-area:2/2/3/3; z-index:2; margin:5px; border-radius:50%;
-    font-size:13px; letter-spacing:1px;
-    background:linear-gradient(180deg,#39404a,#1b1f26);
-    box-shadow:0 2px 0 #0c0e12, inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 3px rgba(0,0,0,.22);
+  #z-up   {clip-path:polygon(0 0,100% 0,50% 50%);}
+  #z-right{clip-path:polygon(100% 0,100% 100%,50% 50%);}
+  #z-down {clip-path:polygon(100% 100%,0 100%,50% 50%);}
+  #z-left {clip-path:polygon(0 100%,0 0,50% 50%);}
+  /* the dark cross is purely visual and never intercepts taps */
+  .cross{position:absolute; inset:0; pointer-events:none;}
+  .cross .arm{
+    position:absolute; background:linear-gradient(180deg,#474d56,#23272e);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.10), inset 0 -3px 6px rgba(0,0,0,.5),
+               0 2px 4px rgba(0,0,0,.45);
   }
-  #k-ok:active{filter:none; box-shadow:inset 0 2px 6px rgba(0,0,0,.55);}
-  /* extended hit areas — forgiving toward the empty corners / outward, never the hub */
-  .key::after{content:""; position:absolute;}
-  #k-up::after   {inset:-16px -8px 0 -8px;}
-  #k-down::after {inset:0 -8px -16px -8px;}
-  #k-left::after {inset:-8px 0 -8px -16px;}
-  #k-right::after{inset:-8px -16px -8px 0;}
-  #k-ok::after   {inset:-5px;}
+  .arm.up   {top:8%;  bottom:50%; left:34%; right:34%; border-radius:11px 11px 4px 4px;}
+  .arm.down {top:50%; bottom:8%;  left:34%; right:34%; border-radius:4px 4px 11px 11px;}
+  .arm.left {left:8%; right:50%;  top:34%;  bottom:34%; border-radius:11px 4px 4px 11px;}
+  .arm.right{left:50%; right:8%;  top:34%;  bottom:34%; border-radius:4px 11px 11px 4px;}
+  .cross .hub{
+    position:absolute; inset:34%; border-radius:20%;
+    background:linear-gradient(180deg,#3f454e,#262b31);
+    box-shadow:inset 0 1px 2px rgba(255,255,255,.08);
+  }
+  /* concave dimple on each arm */
+  .arm::after{
+    content:""; position:absolute; left:50%; top:50%; width:36%; height:36%;
+    transform:translate(-50%,-50%); border-radius:50%;
+    box-shadow:inset 0 1px 3px rgba(0,0,0,.6), 0 1px 0 rgba(255,255,255,.06);
+  }
+  /* pressing a zone lights up the matching arm */
+  #z-up:active    ~ .cross .arm.up,
+  #z-down:active  ~ .cross .arm.down,
+  #z-left:active  ~ .cross .arm.left,
+  #z-right:active ~ .cross .arm.right{filter:brightness(1.4);}
+  /* outward direction ticks on the light rim */
+  .tick{position:absolute; width:0; height:0; pointer-events:none; opacity:.5;}
+  .tick.up   {top:3.5%;    left:50%; transform:translateX(-50%); border-left:7px solid transparent; border-right:7px solid transparent; border-bottom:9px solid #5b616a;}
+  .tick.down {bottom:3.5%; left:50%; transform:translateX(-50%); border-left:7px solid transparent; border-right:7px solid transparent; border-top:9px solid #5b616a;}
+  .tick.left {left:3.5%;   top:50%;  transform:translateY(-50%); border-top:7px solid transparent; border-bottom:7px solid transparent; border-right:9px solid #5b616a;}
+  .tick.right{right:3.5%;  top:50%;  transform:translateY(-50%); border-top:7px solid transparent; border-bottom:7px solid transparent; border-left:9px solid #5b616a;}
   #hint{flex:0 0 auto; text-align:center; font-size:10px; letter-spacing:2px; color:#5b636e;}
   @media (max-height:620px){ #brand small{display:none;} #hint{display:none;} }
   @media (max-height:540px){ #brand{display:none;} }
@@ -167,11 +184,21 @@
         </div>
       </div>
       <div id="pad">
-        <button id="k-up"    class="key" aria-label="Up">▼</button>
-        <button id="k-left"  class="key" aria-label="Left">▶</button>
-        <button id="k-ok"    class="key" aria-label="Start">OK</button>
-        <button id="k-right" class="key" aria-label="Right">◀</button>
-        <button id="k-down"  class="key" aria-label="Down">▲</button>
+        <button class="zone" id="z-up"    aria-label="Up"></button>
+        <button class="zone" id="z-right" aria-label="Right"></button>
+        <button class="zone" id="z-down"  aria-label="Down"></button>
+        <button class="zone" id="z-left"  aria-label="Left"></button>
+        <div class="cross" aria-hidden="true">
+          <span class="arm up"></span>
+          <span class="arm right"></span>
+          <span class="arm down"></span>
+          <span class="arm left"></span>
+          <span class="hub"></span>
+        </div>
+        <span class="tick up"    aria-hidden="true"></span>
+        <span class="tick right" aria-hidden="true"></span>
+        <span class="tick down"  aria-hidden="true"></span>
+        <span class="tick left"  aria-hidden="true"></span>
       </div>
       <div id="hint">SWIPE OR ARROWS · ❚❚ PAUSES</div>
     </div>
@@ -357,11 +384,10 @@
   }
   press(overlay, function(){ if (!overlay.classList.contains('hidden')) activate(); });
   press(pauseBtn, function(){ if (state === 'playing') togglePause(); });
-  press(document.getElementById('k-ok'), function(){ if (state !== 'playing') activate(); });
   function dpad(id, x, y){
     press(document.getElementById(id), function(){ if (state === 'playing') setDir(x, y); else activate(); });
   }
-  dpad('k-up', 0, -1); dpad('k-down', 0, 1); dpad('k-left', -1, 0); dpad('k-right', 1, 0);
+  dpad('z-up', 0, -1); dpad('z-down', 0, 1); dpad('z-left', -1, 0); dpad('z-right', 1, 0);
 
   window.addEventListener('keydown', function(e){
     var k = e.key;
