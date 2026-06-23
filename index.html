@@ -97,25 +97,56 @@
     border:2px solid var(--ink); border-radius:4px;
   }
   .lcd-btn:active{background:transparent; color:var(--ink);}
-  /* ---- controls ---- */
+  /* ---- on-screen pause button (floats over the LCD, not part of the D-pad) ---- */
+  #pauseBtn{
+    position:absolute; top:6px; right:6px; z-index:6;
+    display:none; align-items:center; justify-content:center; gap:4px;
+    width:30px; height:30px; padding:0;
+    background:rgba(31,42,20,.10); border:1.5px solid rgba(31,42,20,.55);
+    border-radius:7px; cursor:pointer; -webkit-tap-highlight-color:transparent;
+  }
+  #pauseBtn.show{display:flex;}
+  #pauseBtn i{width:5px; height:15px; background:var(--ink); border-radius:1px;}
+  #pauseBtn:active{background:var(--ink);}
+  #pauseBtn:active i{background:var(--lcd);}
+  /* hit area extends past the artwork — miss above/below and still "hit" */
+  #pauseBtn::after{content:""; position:absolute; inset:-16px -14px;}
+
+  /* ---- D-pad ---- */
   #pad{
-    flex:0 0 auto; align-self:center;
+    position:relative; flex:0 0 auto; align-self:center;
     display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,1fr);
-    gap:9px; width:min(62vw,210px); aspect-ratio:1/1; max-height:34vh;
+    gap:0; width:min(64vw,220px); aspect-ratio:1/1; max-height:36vh;
+    filter:drop-shadow(0 4px 5px rgba(0,0,0,.5));
   }
   .key{
-    appearance:none; border:none; cursor:pointer; font-family:inherit;
+    position:relative; appearance:none; border:none; cursor:pointer; font-family:inherit;
     display:flex; align-items:center; justify-content:center;
-    color:var(--cap); font-size:22px; font-weight:700;
+    color:var(--cap); font-size:25px; line-height:1; font-weight:700;
     background:linear-gradient(180deg,var(--key-0),var(--key-1));
-    border-radius:14px;
-    box-shadow:0 3px 0 #0c0e12, 0 5px 10px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.08);
-    transition:transform .03s ease, box-shadow .03s ease;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
   }
-  .key:active{transform:translateY(3px); box-shadow:0 0 0 #0c0e12, inset 0 2px 6px rgba(0,0,0,.55);}
-  #k-up{grid-area:1/2/2/3;} #k-left{grid-area:2/1/3/2;}
-  #k-ok{grid-area:2/2/3/3; font-size:13px; letter-spacing:1px; border-radius:50%;}
-  #k-right{grid-area:2/3/3/4;} #k-down{grid-area:3/2/4/3;}
+  .key:active{filter:brightness(.82); box-shadow:inset 0 2px 7px rgba(0,0,0,.5);}
+  /* cross arms — rounded only on the outer corners, arrow tucked toward the centre */
+  #k-up   {grid-area:1/2/2/3; border-radius:15px 15px 0 0; align-items:flex-end;  padding-bottom:7px;}
+  #k-down {grid-area:3/2/4/3; border-radius:0 0 15px 15px; align-items:flex-start; padding-top:7px;}
+  #k-left {grid-area:2/1/3/2; border-radius:15px 0 0 15px; justify-content:flex-end;   padding-right:7px;}
+  #k-right{grid-area:2/3/3/4; border-radius:0 15px 15px 0; justify-content:flex-start; padding-left:7px;}
+  /* centre hub */
+  #k-ok{
+    grid-area:2/2/3/3; z-index:2; margin:5px; border-radius:50%;
+    font-size:13px; letter-spacing:1px;
+    background:linear-gradient(180deg,#39404a,#1b1f26);
+    box-shadow:0 2px 0 #0c0e12, inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 3px rgba(0,0,0,.22);
+  }
+  #k-ok:active{filter:none; box-shadow:inset 0 2px 6px rgba(0,0,0,.55);}
+  /* extended hit areas — forgiving toward the empty corners / outward, never the hub */
+  .key::after{content:""; position:absolute;}
+  #k-up::after   {inset:-16px -8px 0 -8px;}
+  #k-down::after {inset:0 -8px -16px -8px;}
+  #k-left::after {inset:-8px 0 -8px -16px;}
+  #k-right::after{inset:-8px -16px -8px 0;}
+  #k-ok::after   {inset:-5px;}
   #hint{flex:0 0 auto; text-align:center; font-size:10px; letter-spacing:2px; color:#5b636e;}
   @media (max-height:620px){ #brand small{display:none;} #hint{display:none;} }
   @media (max-height:540px){ #brand{display:none;} }
@@ -127,6 +158,7 @@
       <div id="brand">NOKIA<small>SNAKE</small></div>
       <div id="screen">
         <canvas id="game"></canvas>
+        <button id="pauseBtn" type="button" aria-label="Pause"><i></i><i></i></button>
         <div id="overlay">
           <h1 id="ovTitle">SNAKE</h1>
           <p id="ovText">Eat the dots. Don't hit the walls or yourself.</p>
@@ -135,13 +167,13 @@
         </div>
       </div>
       <div id="pad">
-        <button id="k-up"    class="key" aria-label="Up">▲</button>
-        <button id="k-left"  class="key" aria-label="Left">◀</button>
-        <button id="k-ok"    class="key" aria-label="Start / Pause">OK</button>
-        <button id="k-right" class="key" aria-label="Right">▶</button>
-        <button id="k-down"  class="key" aria-label="Down">▼</button>
+        <button id="k-up"    class="key" aria-label="Up">▼</button>
+        <button id="k-left"  class="key" aria-label="Left">▶</button>
+        <button id="k-ok"    class="key" aria-label="Start">OK</button>
+        <button id="k-right" class="key" aria-label="Right">◀</button>
+        <button id="k-down"  class="key" aria-label="Down">▲</button>
       </div>
-      <div id="hint">SWIPE OR ARROWS · OK PAUSES</div>
+      <div id="hint">SWIPE OR ARROWS · ❚❚ PAUSES</div>
     </div>
   </div>
 
@@ -159,7 +191,8 @@
       ovTitle = document.getElementById('ovTitle'),
       ovText = document.getElementById('ovText'),
       ovHint = document.getElementById('ovHint'),
-      playBtn = document.getElementById('playBtn');
+      playBtn = document.getElementById('playBtn'),
+      pauseBtn = document.getElementById('pauseBtn');
 
   var cell = 16, statusH = 24, fieldX = 0, fieldY = 0,
       snake, dir, queue, food, score = 0, best = 0, speed = BASE_SPEED,
@@ -304,8 +337,9 @@
     playBtn.textContent = btn; ovHint.textContent = hint || '';
     ovHint.style.display = hint ? '' : 'none';
     overlay.classList.remove('hidden');
+    pauseBtn.classList.remove('show');
   }
-  function startGame(){ reset(); state = 'playing'; lastStep = 0; overlay.classList.add('hidden'); }
+  function startGame(){ reset(); state = 'playing'; lastStep = 0; overlay.classList.add('hidden'); pauseBtn.classList.add('show'); }
   function gameOver(){
     state = 'over';
     showOverlay('GAME OVER', 'Score <b>' + score + '</b> · Best <b>' + best + '</b>', 'Play Again', 'TAP TO RETRY');
@@ -313,7 +347,7 @@
   function win(){ state = 'over'; showOverlay('YOU WIN', 'Perfect board — <b>' + score + '</b>', 'Play Again', 'TAP TO RETRY'); }
   function togglePause(){
     if (state === 'playing'){ state = 'paused'; showOverlay('PAUSED', 'Take a breather.', 'Resume', 'TAP TO RESUME'); }
-    else if (state === 'paused'){ state = 'playing'; lastStep = 0; overlay.classList.add('hidden'); }
+    else if (state === 'paused'){ state = 'playing'; lastStep = 0; overlay.classList.add('hidden'); pauseBtn.classList.add('show'); }
   }
   function activate(){ if (state === 'paused') togglePause(); else startGame(); }
 
@@ -322,7 +356,8 @@
     el.addEventListener('pointerdown', function(e){ e.preventDefault(); fn(); }, { passive: false });
   }
   press(overlay, function(){ if (!overlay.classList.contains('hidden')) activate(); });
-  press(document.getElementById('k-ok'), function(){ if (state === 'playing' || state === 'paused') togglePause(); else activate(); });
+  press(pauseBtn, function(){ if (state === 'playing') togglePause(); });
+  press(document.getElementById('k-ok'), function(){ if (state !== 'playing') activate(); });
   function dpad(id, x, y){
     press(document.getElementById(id), function(){ if (state === 'playing') setDir(x, y); else activate(); });
   }
@@ -340,8 +375,8 @@
     e.preventDefault();
   }, { passive: false });
 
-  // swipe on the screen to steer (pause is the OK key / Space — never a tap,
-  // so launching the game can't accidentally pause it on the same gesture)
+  // swipe on the screen to steer (pause is the on-screen ❚❚ button / Space —
+  // launching the game can't accidentally pause it on the same gesture)
   var sx0 = 0, sy0 = 0;
   screenEl.addEventListener('touchstart', function(e){
     var t = e.changedTouches[0]; sx0 = t.clientX; sy0 = t.clientY;
