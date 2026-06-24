@@ -1,4 +1,4 @@
-# LCD Arcade
+# LO-FI Arcade
 
 A tiny Nokia/LCD-style mini-game collection in a single `index.html` — no build
 step, no dependencies. Steer with the on-screen D-pad or the keyboard. Add it to
