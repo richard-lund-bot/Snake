@@ -254,7 +254,7 @@
         <span class="tick down"  aria-hidden="true"></span>
         <span class="tick left"  aria-hidden="true"></span>
       </div>
-      <div id="hint">SWIPE OR ARROWS · ❚❚ PAUSES</div>
+      <div id="hint">D-PAD OR ARROWS · ❚❚ PAUSES</div>
     </div>
   </div>
 
@@ -263,7 +263,7 @@
   "use strict";
 
   // ===== console constants =====
-  var STATUS_ROWS = 1.7, SWIPE = 20, MAX_SCORES = 10;
+  var STATUS_ROWS = 1.7, MAX_SCORES = 10;
   var LCD_BG = '#a8ba84', INK = '#1f2a14';
 
   // ===== DOM =====
@@ -361,6 +361,7 @@
       ctx.fillRect(x, y, 1, w); ctx.fillRect(x + w - 1, y, 1, w);
     },
     beam: function(gx, gy){ ctx.fillRect(px(fieldX + gx * cell + (cell >> 1) - 1), px(fieldY + gy * cell + (cell >> 1) - 1), 2, 2); },
+    fillPx: function(x, y, w, h){ ctx.fillRect(px(x), px(y), Math.max(1, Math.round(w)), Math.max(1, Math.round(h))); },  // raw canvas-pixel rect (effects)
     text: text, glyph: glyph,
     setScore: function(n){ score = n; if (score > best) best = score; },
     addScore: function(d){ api.setScore(score + (d || 1)); },
@@ -529,10 +530,6 @@
   function press(el, fn){
     el.addEventListener('pointerdown', function(e){ e.preventDefault(); fn(); }, { passive: false });
   }
-  function route(dx, dy){
-    if (state === 'playing'){ if (current && current.onDir) current.onDir(dx, dy, api); }
-    else if (state === 'menu') menuNav(dx, dy);
-  }
   overlay.addEventListener('pointerdown', function(e){
     if (e.target.closest('button, input, form, ol, li')) return;
     e.preventDefault();
@@ -579,20 +576,7 @@
     e.preventDefault();
   }, { passive: false });
 
-  // swipe on the LCD to steer (only while playing; pause is the on-screen button)
-  var sx0 = 0, sy0 = 0;
-  screenEl.addEventListener('touchstart', function(e){
-    var t = e.changedTouches[0]; sx0 = t.clientX; sy0 = t.clientY;
-  }, { passive: true });
-  screenEl.addEventListener('touchmove', function(e){
-    e.preventDefault();
-    if (state !== 'playing') return;
-    var t = e.changedTouches[0], dx = t.clientX - sx0, dy = t.clientY - sy0;
-    if (Math.abs(dx) < SWIPE && Math.abs(dy) < SWIPE) return;
-    if (Math.abs(dx) > Math.abs(dy)) route(dx > 0 ? 1 : -1, 0); else route(0, dy > 0 ? 1 : -1);
-    sx0 = t.clientX; sy0 = t.clientY;
-  }, { passive: false });
-
+  // touch never steers — only the D-pad and keyboard do; still block page scroll/zoom
   document.addEventListener('touchmove', function(e){ e.preventDefault(); }, { passive: false });
   document.addEventListener('gesturestart', function(e){ e.preventDefault(); });
   document.addEventListener('dblclick', function(e){ e.preventDefault(); });
@@ -657,15 +641,16 @@
     var STEP_MS = 140;               // steady pace (~7 ticks/sec)
     var STARE_NEEDED = 6;            // ticks a foe must stay watched before it crumbles
     var STARE_DECAY = 1;             // stare bled off per tick once you look away
-    var ADV0 = 5, ADV_MIN = 3;       // an unwatched foe steps inward every N ticks (eases ADV0 -> ADV_MIN)
-    var SPAWN0 = 26, SPAWN_MIN = 5;  // ticks between spawns (eases SPAWN0 -> SPAWN_MIN)
-    var RAMP = 750;                  // ticks to reach peak difficulty (~105s in)
-    var START_FOES = 1;
-    var aim, foes, t, sinceSpawn;
+    var ADV0 = 4, ADV_MIN = 3;       // an unwatched foe steps inward every N ticks (eases ADV0 -> ADV_MIN)
+    var SPAWN0 = 18, SPAWN_MIN = 5;  // ticks between spawns (eases SPAWN0 -> SPAWN_MIN)
+    var RAMP = 800;                  // ticks to reach peak difficulty (~110s in)
+    var START_FOES = 2;
+    var BURST_MS = 320;              // banish explosion length (real time)
+    var aim, foes, t, sinceSpawn, bursts;
     function ctr(api){ var c = Math.floor(api.GRID / 2); return { x: c, y: c }; }
     function ease(a, b){ var k = t / RAMP; return Math.round(a + (b - a) * (k > 1 ? 1 : k)); }
     function reset(api){
-      aim = { x: 0, y: -1 }; foes = []; t = 0; sinceSpawn = 0;
+      aim = { x: 0, y: -1 }; foes = []; bursts = []; t = 0; sinceSpawn = 0;
       for (var i = 0; i < START_FOES; i++) spawn(api);
     }
     function spawn(api){
@@ -683,13 +668,15 @@
       return dx < 0 ? 'left' : 'right';
     }
     function onDir(nx, ny, api){ aim = { x: nx, y: ny }; }
-    function tick(api){
+    function tick(api, ts){
       var P = ctr(api), an = aimName(), adv = ease(ADV0, ADV_MIN), i, f, dx, dy;
       t++;
       for (i = foes.length - 1; i >= 0; i--){           // reverse: safe to splice on banish
         f = foes[i]; dx = f.x - P.x; dy = f.y - P.y;
         if (wedge(dx, dy) === an){                       // watched: frozen, and the stare builds
-          if (++f.charge >= STARE_NEEDED){ foes.splice(i, 1); api.addScore(1); }  // crumbles
+          if (++f.charge >= STARE_NEEDED){               // crumbles -> explosion + score
+            bursts.push({ x: f.x, y: f.y, t0: ts || 0 }); foes.splice(i, 1); api.addScore(1);
+          }
           continue;
         }
         if (f.charge > 0) f.charge -= STARE_DECAY;        // look away and the stare cools off
@@ -703,7 +690,7 @@
       if (++sinceSpawn >= ease(SPAWN0, SPAWN_MIN)){ sinceSpawn = 0; spawn(api); }
     }
     function draw(api, ts){
-      var G = api.GRID, P = ctr(api), i, f, r, cx, cy;
+      var G = api.GRID, P = ctr(api), i, f, r, cx, cy, bu, age, k, cs, pop, rad, sz, ang;
       for (r = 1; r < G; r++){                            // gaze beam (where you're looking)
         cx = P.x + aim.x * r; cy = P.y + aim.y * r;
         if (cx < 0 || cy < 0 || cx >= G || cy >= G) break;
@@ -715,6 +702,21 @@
         if (f.charge >= STARE_NEEDED - 1 && (ts % 240) < 120) continue;  // about to crumble: blink out
         if (f.charge > 0) api.ring(f.x, f.y);             // observed / being stared down
         else api.dot(f.x, f.y);                           // closing in
+      }
+      cs = api.cell;                                      // banish explosions, drawn on top (real time)
+      for (i = bursts.length - 1; i >= 0; i--){
+        bu = bursts[i]; age = ts - bu.t0;
+        if (!(age >= 0 && age < BURST_MS)){ bursts.splice(i, 1); continue; }
+        k = age / BURST_MS;                                // 0..1
+        cx = api.fieldX + bu.x * cs + cs / 2; cy = api.fieldY + bu.y * cs + cs / 2;
+        pop = cs * 1.5 * (1 - k / 0.4);                    // bright core flash, gone by 40%
+        if (pop > 1) api.fillPx(cx - pop / 2, cy - pop / 2, pop, pop);
+        rad = cs * (0.15 + 2.1 * k);                       // shrapnel ring blows outward ~2 cells
+        sz = Math.max(1, cs * 0.42 * (1 - k));             // ... and the bits shrink to nothing
+        for (r = 0; r < 10; r++){
+          ang = r * 0.6283 + k;                            // 10 sparks, slight swirl
+          api.fillPx(cx + Math.cos(ang) * rad - sz / 2, cy + Math.sin(ang) * rad - sz / 2, sz, sz);
+        }
       }
     }
     function stepMs(api){ return STEP_MS; }

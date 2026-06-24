@@ -1,8 +1,8 @@
 # LCD Arcade
 
 A tiny Nokia/LCD-style mini-game collection in a single `index.html` — no build
-step, no dependencies. Swipe, tap the on-screen D-pad, or use the keyboard. Add
-it to your home screen to play full-screen.
+step, no dependencies. Steer with the on-screen D-pad or the keyboard. Add it to
+your home screen to play full-screen.
 
 ## Games
 - **Snake** — the classic. Eat the dots, don't hit the walls or yourself.
