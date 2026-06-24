@@ -14,6 +14,9 @@ your home screen to play full-screen.
   the left (left/right are opposite, up/down shared). Run each twin over its
   pellet before that pellet's fuse burns out. Three lives; fuses shrink as you
   score, so the coupled controls get harder to satisfy.
+- **Polarity** — walls fall with a gap marked **+** (solid) or **−** (hollow).
+  Slide to the gap (Left/Right) and match your charge to it (Up = +, Down = −).
+  Three lives; gaps wander wider and fall faster as you score.
 
 Each game keeps its own top-10 high-score table (with 3-initial entry), stored
 locally under a `hs:<game>` key.
