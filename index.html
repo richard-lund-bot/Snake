@@ -443,6 +443,41 @@
     LCD_BG = tgt.bg; INK = tgt.ink;
   }
 
+  // ===== dithered seasonal atmosphere (cached offscreen) =====
+  // A faint 1-bit sky + ground behind the play field: a deeper band up top fading to
+  // the plain background at the horizon, then a gentle ground plane below it. Both
+  // dither tones hug LCD_BG (never near INK), so gameplay figures keep full contrast.
+  // The cache is rebuilt only when the (quantized) palette or the field size changes,
+  // so every steady frame is a single blit -- true dark night/parallax/particles come
+  // later, once figure halos make stronger atmosphere safe.
+  var SKY_MIX = 0.17, GROUND_MIX = 0.10, HORIZON = 0.66;       // depth toward INK; horizon as a fraction of field height
+  var BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];   // 4x4 ordered-dither thresholds (/16)
+  var atmoCanvas = null, atmoCtx = null, atmoKey = '';
+
+  function qChan(h){ var c = hx2rgb(h); return ((c.r >> 3) << 10) | ((c.g >> 3) << 5) | (c.b >> 3); } // ~8 levels/channel
+  function atmoCacheKey(){ return cell + 'x' + GRID + '|' + qChan(LCD_BG) + '|' + qChan(INK); }
+
+  function buildAtmosphere(){
+    var fw = Math.round(cell * GRID), fh = Math.round(cell * GRID);
+    if (!atmoCanvas){ atmoCanvas = document.createElement('canvas'); atmoCtx = atmoCanvas.getContext('2d'); }
+    atmoCanvas.width = fw; atmoCanvas.height = fh;
+    var bg = hx2rgb(LCD_BG);
+    var light = bg, sky = lerpC(bg, hx2rgb(INK), SKY_MIX), ground = lerpC(bg, hx2rgb(INK), GROUND_MIX);
+    var img = atmoCtx.createImageData(fw, fh), d = img.data, hy = HORIZON * (fh - 1);
+    for (var y = 0; y < fh; y++){
+      var inSky = y <= hy;                                     // probability of the deeper tone at this row
+      var prob = inSky ? 1 - y / hy : (y - hy) / (fh - 1 - hy);
+      var deep = inSky ? sky : ground, row = (y & 3) * 4;
+      for (var x = 0; x < fw; x++){
+        var c = prob > (BAYER[row + (x & 3)] + 0.5) / 16 ? deep : light, o = (y * fw + x) * 4;
+        d[o] = c.r; d[o + 1] = c.g; d[o + 2] = c.b; d[o + 3] = 255;
+      }
+    }
+    atmoCtx.putImageData(img, 0, 0);
+    atmoKey = atmoCacheKey();
+  }
+  function ensureAtmosphere(){ if (atmoCacheKey() !== atmoKey) buildAtmosphere(); }
+
   // ===== sizing =====
   function resize(){
     var pad = 10, rect = screenEl.getBoundingClientRect();
@@ -464,9 +499,11 @@
   function draw(ts){
     ts = ts || performance.now();
     var W = cell * GRID, H = cell * GRID + statusH;
-    ctx.fillStyle = LCD_BG; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = LCD_BG; ctx.fillRect(0, 0, W, H);  // flat wash keeps the status bar plain
+    if (!current){ ctx.fillStyle = INK; return; }      // menu: the panel covers the canvas
+    ensureAtmosphere();
+    ctx.drawImage(atmoCanvas, fieldX, fieldY, cell * GRID, cell * GRID);  // dithered seasonal sky behind the field
     ctx.fillStyle = INK;
-    if (!current) return;                              // menu: the panel covers the canvas
     var fs = Math.max(1, Math.floor(statusH / 9));
     var fy = Math.round((statusH - 7 * fs) / 2);
     text(String(score), 2 * fs, fy, fs, false);
