@@ -6,8 +6,10 @@ it to your home screen to play full-screen.
 
 ## Games
 - **Snake** — the classic. Eat the dots, don't hit the walls or yourself.
-- **Don't Blink** — foes creep toward you only while you're *not* watching them.
-  Aim your gaze (a 90° wedge) to freeze a whole side; survive as long as you can.
+- **Don't Blink** — creatures freeze while you watch them and creep inward when
+  you look away. *Hold* your gaze on a side (a 90° wedge) and those foes crumble
+  to dust; sweep your gaze to pick off the nearest threats and outlast a slowly
+  rising swarm. Score is foes banished. Rounds run ~1–3 min; experts go far longer.
 
 Each game keeps its own top-10 high-score table (with 3-initial entry), stored
 locally under a `hs:<game>` key.
