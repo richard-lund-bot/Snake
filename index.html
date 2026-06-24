@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Snake</title>
+<title>LCD Arcade</title>
 <meta name="description" content="Classic Nokia-style Snake — swipe, tap the arrows, or use the keyboard. Add to your home screen and play full-screen.">
 <meta name="theme-color" content="#15181c">
 <!-- iOS: full-screen standalone + add to home screen -->
@@ -88,7 +88,7 @@
   .panel h1{font-size:26px; font-weight:800; margin:0; line-height:1.1;}
   #ovText{font-size:12px; line-height:1.6; margin:0; max-width:240px;}
   #ovText b{font-weight:800;}
-  #ovHint{font-size:12px; font-weight:800; letter-spacing:3px; animation:blink 1s steps(1) infinite;}
+  .lcd-hint{font-size:12px; font-weight:800; letter-spacing:3px; animation:blink 1s steps(1) infinite;}
   @keyframes blink{50%{opacity:0;}}
   .lcd-btn{
     appearance:none; -webkit-appearance:none; cursor:pointer;
@@ -120,6 +120,15 @@
   #scoreList .nm{flex:1; text-align:left; padding-left:8px; letter-spacing:3px;}
   #scoreList .sc{font-weight:800;}
   #scoreList .empty{justify-content:center; opacity:.6;}
+  /* game menu list */
+  #gameList{
+    list-style:none; margin:0; padding:0 4px; width:100%; max-width:250px;
+    max-height:52vh; overflow:auto; font-size:14px; letter-spacing:2px;
+  }
+  #gameList li{display:flex; align-items:baseline; gap:8px; padding:8px 10px; border-radius:3px; cursor:pointer;}
+  #gameList li.sel{background:var(--ink); color:var(--lcd);}
+  #gameList .nm{flex:1; text-align:left;}
+  #gameList .sc{font-weight:800; font-size:11px; opacity:.8;}
   /* ---- on-screen pause button (floats over the LCD, not part of the D-pad) ---- */
   #pauseBtn{
     position:absolute; bottom:6px; right:6px; z-index:6;
@@ -195,7 +204,7 @@
 <body>
   <div id="app">
     <div id="device">
-      <div id="brand">NOKIA<small>SNAKE</small></div>
+      <div id="brand">NOKIA<small id="brandSub">ARCADE</small></div>
       <div id="screen">
         <canvas id="game"></canvas>
         <button id="pauseBtn" type="button" aria-label="Pause"><i></i><i></i></button>
@@ -204,7 +213,8 @@
           <p id="ovText">Eat the dots. Don't hit the walls or yourself.</p>
           <button id="playBtn" class="lcd-btn">Start</button>
           <button id="scoresBtn" class="lcd-btn ghost">High Scores</button>
-          <div id="ovHint">PRESS START</div>
+          <button id="menuBtn" class="lcd-btn ghost">Menu</button>
+          <div id="ovHint" class="lcd-hint">PRESS START</div>
         </div>
         <div id="entry" class="panel hidden">
           <h1>New High Score!</h1>
@@ -220,6 +230,11 @@
           <h1>High Scores</h1>
           <ol id="scoreList"></ol>
           <button id="scoresBack" class="lcd-btn">Back</button>
+        </div>
+        <div id="menu" class="panel">
+          <h1>ARCADE</h1>
+          <ol id="gameList"></ol>
+          <div id="menuHint" class="lcd-hint">TAP A GAME</div>
         </div>
       </div>
       <div id="pad">
@@ -246,13 +261,16 @@
 <script>
 (function(){
   "use strict";
-  var GRID = 16, START_LEN = 3,
-      BASE_SPEED = 130, MIN_SPEED = 70, SPEED_STEP = 4, MIN_STEP = 55,
-      STATUS_ROWS = 1.7, SWIPE = 20;
 
+  // ===== console constants =====
+  var STATUS_ROWS = 1.7, SWIPE = 20, MAX_SCORES = 10;
+  var LCD_BG = '#a8ba84', INK = '#1f2a14';
+
+  // ===== DOM =====
   var canvas = document.getElementById('game'),
       ctx = canvas.getContext('2d'),
       screenEl = document.getElementById('screen'),
+      brandSub = document.getElementById('brandSub'),
       overlay = document.getElementById('overlay'),
       ovTitle = document.getElementById('ovTitle'),
       ovText = document.getElementById('ovText'),
@@ -260,37 +278,49 @@
       playBtn = document.getElementById('playBtn'),
       pauseBtn = document.getElementById('pauseBtn'),
       scoresBtn = document.getElementById('scoresBtn'),
+      menuBtn = document.getElementById('menuBtn'),
       entryPanel = document.getElementById('entry'),
       entryRank = document.getElementById('entryRank'),
       entryForm = document.getElementById('entryForm'),
       initials = document.getElementById('initials'),
       scoresPanel = document.getElementById('scores'),
       scoreList = document.getElementById('scoreList'),
-      scoresBack = document.getElementById('scoresBack');
+      scoresBack = document.getElementById('scoresBack'),
+      menuPanel = document.getElementById('menu'),
+      gameList = document.getElementById('gameList');
 
-  var cell = 16, statusH = 24, fieldX = 0, fieldY = 0,
-      snake, dir, queue, food, score = 0, best = 0, speed = BASE_SPEED,
-      state = 'start', lastStep = 0, won = false, screenKind = 'start';
+  // ===== console state =====
+  var cell = 16, statusH = 24, fieldX = 0, fieldY = 0, GRID = 16,
+      state = 'menu', screenKind = 'menu', lastStep = 0, won = false,
+      current = null, score = 0, best = 0, scores = [], hsKey = '',
+      menuSel = 0;
 
-  // ---------- high-score store (top 10, newest-wins on ties) ----------
-  var MAX_SCORES = 10, scores = loadScores();
-  best = scores.length ? scores[0].score : 0;
-  try { best = Math.max(best, parseInt(localStorage.getItem('snakeBest') || '0', 10) || 0); } catch(e){}
-
-  function loadScores(){
+  // ===== high-score store (per game, top 10, newest-wins on ties) =====
+  function loadScores(key){
     try {
-      var raw = JSON.parse(localStorage.getItem('snakeScores') || '[]');
+      var raw = JSON.parse(localStorage.getItem(key) || '[]');
       if (Object.prototype.toString.call(raw) === '[object Array]')
         return raw.filter(function(e){ return e && typeof e.score === 'number'; })
                   .sort(function(a, b){ return b.score - a.score; }).slice(0, MAX_SCORES);
     } catch(e){}
     return [];
   }
-  function saveScores(){ try { localStorage.setItem('snakeScores', JSON.stringify(scores)); } catch(e){} }
+  function saveScores(key, arr){ try { localStorage.setItem(key, JSON.stringify(arr)); } catch(e){} }
+  function bestFor(id){ var s = loadScores('hs:' + id); return s.length ? s[0].score : 0; }
   function qualifies(s){ return s > 0 && (scores.length < MAX_SCORES || s > scores[scores.length - 1].score); }
   function rankFor(s){ var r = 1; for (var i = 0; i < scores.length; i++) if (scores[i].score > s) r++; return r; }
+  // one-time migration of the original Snake scores into the keyed store
+  function migrateSnake(){
+    try {
+      if (localStorage.getItem('hs:snake') != null) return;
+      var old = localStorage.getItem('snakeScores');
+      if (old != null) { localStorage.setItem('hs:snake', old); return; }
+      var b = parseInt(localStorage.getItem('snakeBest') || '0', 10) || 0;
+      if (b > 0) localStorage.setItem('hs:snake', JSON.stringify([{ name: 'YOU', score: b }]));
+    } catch(e){}
+  }
 
-  // 5x7 pixel font for the LCD score read-out
+  // ===== 5x7 pixel font for the LCD read-outs =====
   var FONT = {
     '0':[0x0E,0x11,0x13,0x15,0x19,0x11,0x0E],'1':[0x04,0x0C,0x04,0x04,0x04,0x04,0x0E],
     '2':[0x0E,0x11,0x01,0x02,0x04,0x08,0x1F],'3':[0x1F,0x02,0x04,0x02,0x01,0x11,0x0E],
@@ -299,66 +329,6 @@
     '8':[0x0E,0x11,0x11,0x0E,0x11,0x11,0x0E],'9':[0x0E,0x11,0x11,0x0F,0x01,0x02,0x0C],
     'H':[0x11,0x11,0x11,0x1F,0x11,0x11,0x11],'I':[0x0E,0x04,0x04,0x04,0x04,0x04,0x0E]
   };
-
-  // ---------- sizing ----------
-  function resize(){
-    var pad = 10, rect = screenEl.getBoundingClientRect();
-    var availW = rect.width - pad * 2, availH = rect.height - pad * 2;
-    cell = Math.max(6, Math.floor(Math.min(availW / GRID, availH / (GRID + STATUS_ROWS))));
-    statusH = Math.round(cell * STATUS_ROWS);
-    var cssW = cell * GRID, cssH = cell * GRID + statusH;
-    fieldX = 0; fieldY = statusH;
-    var dpr = Math.min(window.devicePixelRatio || 1, 3);
-    canvas.style.width = cssW + 'px'; canvas.style.height = cssH + 'px';
-    canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.imageSmoothingEnabled = false;
-    draw();
-  }
-
-  // ---------- game ----------
-  function reset(){
-    snake = [];
-    var c = Math.floor(GRID / 2);
-    for (var i = 0; i < START_LEN; i++) snake.push({ x: c - i, y: c });
-    dir = { x: 1, y: 0 }; queue = [];
-    score = 0; speed = BASE_SPEED;
-    placeFood();
-  }
-  function placeFood(){
-    if (snake.length >= GRID * GRID) { win(); return; }
-    var occ = {}, p, k;
-    for (var i = 0; i < snake.length; i++) occ[snake[i].x + ',' + snake[i].y] = 1;
-    do { p = { x: (Math.random() * GRID) | 0, y: (Math.random() * GRID) | 0 }; k = p.x + ',' + p.y; }
-    while (occ[k]);
-    food = p;
-  }
-  function setDir(nx, ny){
-    if (state !== 'playing') return;
-    var ref = queue.length ? queue[queue.length - 1] : dir;
-    if (ref.x === -nx && ref.y === -ny) return;   // no reversal
-    if (ref.x === nx && ref.y === ny) return;      // no duplicate
-    if (queue.length < 2) queue.push({ x: nx, y: ny });
-    // eager turn: apply at once if a tick's worth of time has passed
-    if (performance.now() - lastStep >= MIN_STEP) { lastStep = performance.now(); step(); }
-  }
-  function step(){
-    if (queue.length) dir = queue.shift();
-    var head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
-    if (head.x < 0 || head.y < 0 || head.x >= GRID || head.y >= GRID) return gameOver();
-    var ate = (head.x === food.x && head.y === food.y);
-    var limit = ate ? snake.length : snake.length - 1;
-    for (var i = 0; i < limit; i++) if (snake[i].x === head.x && snake[i].y === head.y) return gameOver();
-    snake.unshift(head);
-    if (ate){
-      score++;
-      if (score > best){ best = score; try { localStorage.setItem('snakeBest', best); } catch(e){} }
-      speed = Math.max(MIN_SPEED, BASE_SPEED - score * SPEED_STEP);
-      placeFood();
-    } else snake.pop();
-  }
-
-  // ---------- drawing ----------
   function px(n){ return Math.round(n); }
   function glyph(g, x, y, s){
     if (!g) return;
@@ -371,85 +341,149 @@
     for (var i = 0; i < str.length; i++){ glyph(FONT[str[i]], x, y, s); x += 6 * s; }
     return w;
   }
+
+  // ===== draw API handed to games (coords are grid cells in the play field) =====
+  function fillCell(gx, gy){ ctx.fillRect(px(fieldX + gx * cell), px(fieldY + gy * cell), cell - 1, cell - 1); }
+  function punchCenter(gx, gy){
+    var sx = fieldX + gx * cell, sy = fieldY + gy * cell;
+    ctx.fillStyle = LCD_BG;
+    ctx.fillRect(px(sx + (cell - 1) / 2 - 1), px(sy + (cell - 1) / 2 - 1), 2, 2);
+    ctx.fillStyle = INK;
+  }
+  var api = {
+    GRID: GRID, cell: cell, fieldX: fieldX, fieldY: fieldY, statusH: statusH,
+    block: fillCell,                                    // solid cell (snake body)
+    head: function(gx, gy){ fillCell(gx, gy); if (cell >= 9) punchCenter(gx, gy); }, // solid + hole
+    dot: function(gx, gy){ var i = cell <= 8 ? 1 : 2; ctx.fillRect(px(fieldX + gx * cell + i), px(fieldY + gy * cell + i), cell - i * 2, cell - i * 2); },
+    ring: function(gx, gy){                              // hollow square (frozen foe)
+      var x = px(fieldX + gx * cell), y = px(fieldY + gy * cell), w = cell - 1;
+      ctx.fillRect(x, y, w, 1); ctx.fillRect(x, y + w - 1, w, 1);
+      ctx.fillRect(x, y, 1, w); ctx.fillRect(x + w - 1, y, 1, w);
+    },
+    beam: function(gx, gy){ ctx.fillRect(px(fieldX + gx * cell + (cell >> 1) - 1), px(fieldY + gy * cell + (cell >> 1) - 1), 2, 2); },
+    text: text, glyph: glyph,
+    setScore: function(n){ score = n; if (score > best) best = score; },
+    addScore: function(d){ api.setScore(score + (d || 1)); },
+    getScore: function(){ return score; },
+    gameOver: function(){ endGame(false); },
+    win: function(){ endGame(true); },
+    sinceStep: function(){ return performance.now() - lastStep; },
+    stepNow: function(){ lastStep = performance.now(); current.tick(api); }
+  };
+
+  // ===== sizing =====
+  function resize(){
+    var pad = 10, rect = screenEl.getBoundingClientRect();
+    var availW = rect.width - pad * 2, availH = rect.height - pad * 2;
+    cell = Math.max(6, Math.floor(Math.min(availW / GRID, availH / (GRID + STATUS_ROWS))));
+    statusH = Math.round(cell * STATUS_ROWS);
+    var cssW = cell * GRID, cssH = cell * GRID + statusH;
+    fieldX = 0; fieldY = statusH;
+    var dpr = Math.min(window.devicePixelRatio || 1, 3);
+    canvas.style.width = cssW + 'px'; canvas.style.height = cssH + 'px';
+    canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    api.cell = cell; api.fieldX = fieldX; api.fieldY = fieldY; api.statusH = statusH; api.GRID = GRID;
+    draw();
+  }
+
+  // ===== core render: LCD wash + status bar, then the active game's field =====
   function draw(ts){
     ts = ts || performance.now();
     var W = cell * GRID, H = cell * GRID + statusH;
-    ctx.fillStyle = '#a8ba84'; ctx.fillRect(0, 0, W, H);   // LCD wash
-    ctx.fillStyle = '#1f2a14';
-
-    // ----- status bar (pixel-font score) -----
-    var fs = Math.max(1, Math.floor(statusH / 9));          // font pixel size
+    ctx.fillStyle = LCD_BG; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = INK;
+    if (!current) return;                              // menu: the panel covers the canvas
+    var fs = Math.max(1, Math.floor(statusH / 9));
     var fy = Math.round((statusH - 7 * fs) / 2);
     text(String(score), 2 * fs, fy, fs, false);
-    var hi = 'HI' + String(best);
-    text(hi, W - 2 * fs, fy, fs, true);
-    ctx.fillRect(0, statusH - 1, W, 1);                     // divider
-
-    if (!snake) return;
-
-    // ----- play field border -----
-    ctx.fillRect(fieldX, fieldY, W, 1);
+    text('HI' + String(best), W - 2 * fs, fy, fs, true);
+    ctx.fillRect(0, statusH - 1, W, 1);                 // status divider
+    ctx.fillRect(fieldX, fieldY, W, 1);                 // field border
     ctx.fillRect(fieldX, H - 1, W, 1);
     ctx.fillRect(fieldX, fieldY, 1, H - fieldY);
     ctx.fillRect(W - 1, fieldY, 1, H - fieldY);
-
-    var inset = cell <= 8 ? 1 : 2;
-    // ----- food (blinks, like the original) -----
-    if ((ts % 600) < 420){
-      var fx = fieldX + food.x * cell, fyy = fieldY + food.y * cell;
-      ctx.fillRect(px(fx + inset), px(fyy + inset), cell - inset * 2, cell - inset * 2);
-    }
-    // ----- snake (solid LCD blocks) -----
-    for (var i = 0; i < snake.length; i++){
-      var sx = fieldX + snake[i].x * cell, sy = fieldY + snake[i].y * cell;
-      ctx.fillRect(px(sx), px(sy), cell - 1, cell - 1);
-      if (i === 0 && cell >= 9){                            // head: hollow center to "lead"
-        ctx.fillStyle = '#a8ba84';
-        ctx.fillRect(px(sx + (cell - 1) / 2 - 1), px(sy + (cell - 1) / 2 - 1), 2, 2);
-        ctx.fillStyle = '#1f2a14';
-      }
-    }
+    current.draw(api, ts);
   }
 
-  // ---------- loop ----------
+  // ===== loop =====
   function loop(ts){
     requestAnimationFrame(loop);
     if (state === 'playing'){
       if (!lastStep) lastStep = ts;
-      if (ts - lastStep >= speed){ lastStep = ts; step(); }
+      var ms = current.stepMs ? current.stepMs(api) : 130;
+      if (ts - lastStep >= ms){ lastStep = ts; current.tick(api, ts); }
     }
     draw(ts);
   }
 
-  // ---------- state ----------
+  // ===== panels / flow =====
   function hidePanels(){
-    overlay.classList.add('hidden'); entryPanel.classList.add('hidden'); scoresPanel.classList.add('hidden');
+    overlay.classList.add('hidden'); entryPanel.classList.add('hidden');
+    scoresPanel.classList.add('hidden'); menuPanel.classList.add('hidden');
   }
-  function showOverlay(title, html, btn, hint, withScores){
+  function showOverlay(title, html, btn, hint, opts){
+    opts = opts || {};
     hidePanels();
     ovTitle.textContent = title; ovText.innerHTML = html;
     playBtn.textContent = btn; ovHint.textContent = hint || '';
     ovHint.style.display = hint ? '' : 'none';
-    scoresBtn.style.display = withScores ? '' : 'none';
+    scoresBtn.style.display = opts.scores ? '' : 'none';
+    menuBtn.style.display = opts.menu ? '' : 'none';
     overlay.classList.remove('hidden');
     pauseBtn.classList.remove('show');
   }
-  function showStart(){
-    screenKind = 'start';
-    showOverlay('SNAKE', 'Eat the dots.<br>Don\'t hit the walls or yourself.', 'Start', 'PRESS START', true);
+
+  // ----- home menu -----
+  function showMenu(){
+    current = null; state = 'menu'; screenKind = 'menu';
+    brandSub.textContent = 'ARCADE';
+    hidePanels(); renderMenu(); menuPanel.classList.remove('hidden');
+    pauseBtn.classList.remove('show');
   }
-  function startGame(){ hidePanels(); reset(); state = 'playing'; lastStep = 0; pauseBtn.classList.add('show'); }
-  function gameOver(){ won = false; endGame(); }
-  function win(){ won = true; endGame(); }
-  function endGame(){
-    state = 'over'; screenKind = 'end';
-    if (qualifies(score)) showEntry();
-    else showEnd();
+  function renderMenu(){
+    var html = '';
+    for (var i = 0; i < GAMES.length; i++){
+      var g = GAMES[i], hb = bestFor(g.id);
+      html += '<li data-i="' + i + '"' + (i === menuSel ? ' class="sel"' : '') +
+              '><span class="nm">' + g.title + '</span><span class="sc">' +
+              (hb ? 'HI ' + hb : '—') + '</span></li>';
+    }
+    gameList.innerHTML = html;
+  }
+  function menuNav(dx, dy){
+    if (dy){ menuSel = (menuSel + (dy > 0 ? 1 : -1) + GAMES.length) % GAMES.length; renderMenu(); }
+    else if (dx > 0) launchSel();
+  }
+  function launchSel(){ startGame(GAMES[menuSel]); }
+
+  // ----- game lifecycle -----
+  function startGame(g){
+    current = g; GRID = g.grid || 16; api.GRID = GRID;
+    hsKey = 'hs:' + g.id; scores = loadScores(hsKey);
+    best = scores.length ? scores[0].score : 0; score = 0;
+    brandSub.textContent = g.title;
+    hidePanels();
+    g.reset(api);                       // populate state before the first draw
+    resize();
+    state = 'playing'; lastStep = 0; pauseBtn.classList.add('show');
+  }
+  function endGame(w){
+    won = w; state = 'over'; screenKind = 'end';
+    if (qualifies(score)) showEntry(); else showEnd();
   }
   function showEnd(){
-    if (won) showOverlay('YOU WIN', 'Perfect board — <b>' + score + '</b>', 'Play Again', 'TAP TO RETRY', true);
-    else showOverlay('GAME OVER', 'Score <b>' + score + '</b> · Best <b>' + best + '</b>', 'Play Again', 'TAP TO RETRY', true);
+    var opts = { scores: true, menu: true };
+    if (won) showOverlay('YOU WIN', 'Perfect board &mdash; <b>' + score + '</b>', 'Play Again', 'TAP TO RETRY', opts);
+    else showOverlay('GAME OVER', 'Score <b>' + score + '</b> · Best <b>' + best + '</b>', 'Play Again', 'TAP TO RETRY', opts);
   }
+  function togglePause(){
+    if (state === 'playing'){ state = 'paused'; showOverlay('PAUSED', 'Take a breather.', 'Resume', 'TAP TO RESUME', { scores: false, menu: true }); }
+    else if (state === 'paused'){ state = 'playing'; lastStep = 0; hidePanels(); pauseBtn.classList.add('show'); }
+  }
+
+  // ----- initials entry + score table -----
   function showEntry(){
     hidePanels();
     entryRank.textContent = "You're #" + rankFor(score) + ' · score ' + score;
@@ -464,7 +498,7 @@
     scores.sort(function(a, b){ return b.score - a.score; });
     if (scores.length > MAX_SCORES) scores.length = MAX_SCORES;
     best = scores[0].score;
-    saveScores();
+    saveScores(hsKey, scores);
     showScores(nm, score);
   }
   function showScores(hlName, hlScore){
@@ -484,22 +518,21 @@
     }
     scoreList.innerHTML = html;
   }
-  function togglePause(){
-    if (state === 'playing'){ state = 'paused'; showOverlay('PAUSED', 'Take a breather.', 'Resume', 'TAP TO RESUME', false); }
-    else if (state === 'paused'){ state = 'playing'; lastStep = 0; hidePanels(); pauseBtn.classList.add('show'); }
-  }
-  // a tap to start/resume only counts on the main overlay (not the entry/score panels)
+
+  // tap the empty area of the main overlay = start / resume / retry
   function activate(){
     if (state === 'paused'){ togglePause(); return; }
-    if (!overlay.classList.contains('hidden')) startGame();
+    if (state === 'over' && !overlay.classList.contains('hidden')){ startGame(current); }
   }
 
-  // ---------- input ----------
+  // ===== input =====
   function press(el, fn){
     el.addEventListener('pointerdown', function(e){ e.preventDefault(); fn(); }, { passive: false });
   }
-  // tap the empty area of the main overlay to start/retry/resume; let the
-  // buttons / input inside the panels handle their own taps
+  function route(dx, dy){
+    if (state === 'playing'){ if (current && current.onDir) current.onDir(dx, dy, api); }
+    else if (state === 'menu') menuNav(dx, dy);
+  }
   overlay.addEventListener('pointerdown', function(e){
     if (e.target.closest('button, input, form, ol, li')) return;
     e.preventDefault();
@@ -507,30 +540,46 @@
   }, { passive: false });
   press(playBtn, function(){ activate(); });
   press(scoresBtn, function(){ showScores(); });
-  press(scoresBack, function(){ if (screenKind === 'end') showEnd(); else showStart(); });
+  press(menuBtn, function(){ showMenu(); });
+  press(scoresBack, function(){ if (screenKind === 'end') showEnd(); else showMenu(); });
   entryForm.addEventListener('submit', function(e){ e.preventDefault(); saveEntry(); });
   press(pauseBtn, function(){ if (state === 'playing') togglePause(); });
+  gameList.addEventListener('pointerdown', function(e){
+    var li = e.target.closest('li'); if (!li) return;
+    e.preventDefault();
+    var i = parseInt(li.getAttribute('data-i'), 10);
+    if (i >= 0){ menuSel = i; launchSel(); }
+  }, { passive: false });
+
   function dpad(id, x, y){
-    press(document.getElementById(id), function(){ if (state === 'playing') setDir(x, y); else activate(); });
+    press(document.getElementById(id), function(){
+      if (state === 'playing'){ if (current && current.onDir) current.onDir(x, y, api); }
+      else if (state === 'menu') menuNav(x, y);
+      else activate();
+    });
   }
   dpad('z-up', 0, -1); dpad('z-down', 0, 1); dpad('z-left', -1, 0); dpad('z-right', 1, 0);
 
   window.addEventListener('keydown', function(e){
-    // don't let game controls fire while typing initials
     if (e.target && (e.target.tagName === 'INPUT' || e.target.isContentEditable)) return;
-    var k = e.key;
-    if (k === 'ArrowUp' || k === 'w' || k === 'W') setDir(0, -1);
-    else if (k === 'ArrowDown' || k === 's' || k === 'S') setDir(0, 1);
-    else if (k === 'ArrowLeft' || k === 'a' || k === 'A') setDir(-1, 0);
-    else if (k === 'ArrowRight' || k === 'd' || k === 'D') setDir(1, 0);
-    else if (k === ' ' || k === 'Enter'){ if (state === 'playing' || state === 'paused') togglePause(); else activate(); e.preventDefault(); return; }
-    else return;
-    if ((state === 'start' || state === 'over') && !overlay.classList.contains('hidden')) startGame();
+    var k = e.key, dx = 0, dy = 0;
+    if (k === 'ArrowUp' || k === 'w' || k === 'W') dy = -1;
+    else if (k === 'ArrowDown' || k === 's' || k === 'S') dy = 1;
+    else if (k === 'ArrowLeft' || k === 'a' || k === 'A') dx = -1;
+    else if (k === 'ArrowRight' || k === 'd' || k === 'D') dx = 1;
+    else if (k === ' ' || k === 'Enter'){
+      if (state === 'menu') launchSel();
+      else if (state === 'playing' || state === 'paused') togglePause();
+      else activate();
+      e.preventDefault(); return;
+    } else return;
+    if (state === 'playing'){ if (current && current.onDir) current.onDir(dx, dy, api); }
+    else if (state === 'menu') menuNav(dx, dy);
+    else if (state === 'over' && !overlay.classList.contains('hidden')) activate();
     e.preventDefault();
   }, { passive: false });
 
-  // swipe on the screen to steer (pause is the on-screen ❚❚ button / Space —
-  // launching the game can't accidentally pause it on the same gesture)
+  // swipe on the LCD to steer (only while playing; pause is the on-screen button)
   var sx0 = 0, sy0 = 0;
   screenEl.addEventListener('touchstart', function(e){
     var t = e.changedTouches[0]; sx0 = t.clientX; sy0 = t.clientY;
@@ -540,7 +589,7 @@
     if (state !== 'playing') return;
     var t = e.changedTouches[0], dx = t.clientX - sx0, dy = t.clientY - sy0;
     if (Math.abs(dx) < SWIPE && Math.abs(dy) < SWIPE) return;
-    if (Math.abs(dx) > Math.abs(dy)) setDir(dx > 0 ? 1 : -1, 0); else setDir(0, dy > 0 ? 1 : -1);
+    if (Math.abs(dx) > Math.abs(dy)) route(dx > 0 ? 1 : -1, 0); else route(0, dy > 0 ? 1 : -1);
     sx0 = t.clientX; sy0 = t.clientY;
   }, { passive: false });
 
@@ -548,13 +597,123 @@
   document.addEventListener('gesturestart', function(e){ e.preventDefault(); });
   document.addEventListener('dblclick', function(e){ e.preventDefault(); });
 
-  // ---------- init ----------
+  // ===== game registry =====
+  var GAMES = [];
+  function register(g){ GAMES.push(g); }
+
+  // ---- Snake ----
+  register((function(){
+    var START_LEN = 3, BASE = 130, MINS = 70, STEP = 4, MIN_STEP = 55;
+    var snake, dir, queue, food;
+    function reset(api){
+      var G = api.GRID, c = Math.floor(G / 2);
+      snake = [];
+      for (var i = 0; i < START_LEN; i++) snake.push({ x: c - i, y: c });
+      dir = { x: 1, y: 0 }; queue = [];
+      placeFood(api);
+    }
+    function placeFood(api){
+      var G = api.GRID;
+      if (snake.length >= G * G) { api.win(); return; }
+      var occ = {}, p, k;
+      for (var i = 0; i < snake.length; i++) occ[snake[i].x + ',' + snake[i].y] = 1;
+      do { p = { x: (Math.random() * G) | 0, y: (Math.random() * G) | 0 }; k = p.x + ',' + p.y; }
+      while (occ[k]);
+      food = p;
+    }
+    function onDir(nx, ny, api){
+      var ref = queue.length ? queue[queue.length - 1] : dir;
+      if (ref.x === -nx && ref.y === -ny) return;       // no reversal
+      if (ref.x === nx && ref.y === ny) return;          // no duplicate
+      if (queue.length < 2) queue.push({ x: nx, y: ny });
+      if (api.sinceStep() >= MIN_STEP) api.stepNow();    // eager turn
+    }
+    function tick(api){
+      var G = api.GRID;
+      if (queue.length) dir = queue.shift();
+      var head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+      if (head.x < 0 || head.y < 0 || head.x >= G || head.y >= G) return api.gameOver();
+      var ate = (head.x === food.x && head.y === food.y);
+      var limit = ate ? snake.length : snake.length - 1;
+      for (var i = 0; i < limit; i++) if (snake[i].x === head.x && snake[i].y === head.y) return api.gameOver();
+      snake.unshift(head);
+      if (ate){ api.addScore(1); placeFood(api); } else snake.pop();
+    }
+    function draw(api, ts){
+      if ((ts % 600) < 420) api.dot(food.x, food.y);     // food blinks
+      for (var i = 0; i < snake.length; i++){
+        if (i === 0) api.head(snake[0].x, snake[0].y);
+        else api.block(snake[i].x, snake[i].y);
+      }
+    }
+    function stepMs(api){ return Math.max(MINS, BASE - api.getScore() * STEP); }
+    return { id: 'snake', title: 'SNAKE', grid: 16,
+             reset: reset, tick: tick, draw: draw, onDir: onDir, stepMs: stepMs };
+  })());
+
+  // ---- Don't Blink: foes creep in when unwatched; aim your gaze to freeze a side ----
+  register((function(){
+    var BASE = 460, MINMS = 200, STEP = 5, START_FOES = 2, SPAWN0 = 8, SPAWN_MIN = 3;
+    var aim, foes, spawnEvery, sinceSpawn, spawns;
+    function ctr(api){ var c = Math.floor(api.GRID / 2); return { x: c, y: c }; }
+    function reset(api){
+      aim = { x: 0, y: -1 }; foes = []; spawnEvery = SPAWN0; sinceSpawn = 0; spawns = 0;
+      for (var i = 0; i < START_FOES; i++) spawn(api);
+    }
+    function spawn(api){
+      var G = api.GRID, s = (Math.random() * 4) | 0, x, y;
+      if (s === 0){ x = (Math.random() * G) | 0; y = 0; }
+      else if (s === 1){ x = G - 1; y = (Math.random() * G) | 0; }
+      else if (s === 2){ x = (Math.random() * G) | 0; y = G - 1; }
+      else { x = 0; y = (Math.random() * G) | 0; }
+      foes.push({ x: x, y: y, frozen: false });
+      if (++spawns % 3 === 0 && spawnEvery > SPAWN_MIN) spawnEvery--;   // ramp up
+    }
+    function aimName(){ return aim.y < 0 ? 'up' : aim.y > 0 ? 'down' : aim.x < 0 ? 'left' : 'right'; }
+    function wedge(dx, dy){                              // which gaze-quadrant a foe sits in
+      if (dx === 0 && dy === 0) return null;
+      if (Math.abs(dx) <= Math.abs(dy)) return dy < 0 ? 'up' : 'down';  // diagonals tie to vertical
+      return dx < 0 ? 'left' : 'right';
+    }
+    function onDir(nx, ny, api){ aim = { x: nx, y: ny }; }
+    function tick(api){
+      var P = ctr(api), an = aimName(), i, f, dx, dy;
+      for (i = 0; i < foes.length; i++){
+        f = foes[i]; dx = f.x - P.x; dy = f.y - P.y;
+        f.frozen = (wedge(dx, dy) === an);              // watched foes hold still
+        if (f.frozen) continue;
+        if (Math.abs(dx) >= Math.abs(dy)) f.x += dx > 0 ? -1 : 1;   // step toward you
+        else f.y += dy > 0 ? -1 : 1;
+        if (f.x === P.x && f.y === P.y) return api.gameOver();
+      }
+      api.addScore(1);
+      if (++sinceSpawn >= spawnEvery){ sinceSpawn = 0; spawn(api); }
+    }
+    function draw(api, ts){
+      var G = api.GRID, P = ctr(api), t, cx, cy;
+      for (t = 1; t < G; t++){                          // gaze beam (where you're looking)
+        cx = P.x + aim.x * t; cy = P.y + aim.y * t;
+        if (cx < 0 || cy < 0 || cx >= G || cy >= G) break;
+        api.beam(cx, cy);
+      }
+      api.head(P.x, P.y);                               // you
+      for (var i = 0; i < foes.length; i++){
+        var f = foes[i];
+        if (f.frozen) api.ring(f.x, f.y); else api.dot(f.x, f.y);  // hollow = held, solid = closing
+      }
+    }
+    function stepMs(api){ return Math.max(MINMS, BASE - api.getScore() * STEP); }
+    return { id: 'blink', title: "DON'T BLINK", grid: 16,
+             reset: reset, tick: tick, draw: draw, onDir: onDir, stepMs: stepMs };
+  })());
+
+  // ===== init =====
+  migrateSnake();
   window.addEventListener('resize', resize);
   window.addEventListener('orientationchange', function(){ setTimeout(resize, 150); });
   if (window.visualViewport) window.visualViewport.addEventListener('resize', resize);
-
   resize();
-  showStart();
+  showMenu();
   requestAnimationFrame(loop);
 })();
 </script>
