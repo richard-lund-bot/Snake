@@ -10,6 +10,10 @@ your home screen to play full-screen.
   you look away. *Hold* your gaze on a side (a 90° wedge) and those foes crumble
   to dust; sweep your gaze to pick off the nearest threats and outlast a slowly
   rising swarm. Score is foes banished. Rounds run ~1–3 min; experts go far longer.
+- **Mirror Twins** — one D-pad drives two dots at once: the right twin mirrors
+  the left (left/right are opposite, up/down shared). Run each twin over its
+  pellet before that pellet's fuse burns out. Three lives; fuses shrink as you
+  score, so the coupled controls get harder to satisfy.
 
 Each game keeps its own top-10 high-score table (with 3-initial entry), stored
 locally under a `hs:<game>` key.

@@ -724,6 +724,56 @@
              reset: reset, tick: tick, draw: draw, onDir: onDir, stepMs: stepMs };
   })());
 
+  // ---- Mirror Twins: one D-pad drives two mirrored dots; feed both fuses before they burn out ----
+  register((function(){
+    var STEP_MS = 120;               // tick: twins advance one cell along the heading
+    var FUSE0 = 120, FUSE_MIN = 22;  // pellet lifespan in ticks (shrinks as you score)
+    var SHR = 0.8;                   // fuse shrink per pellet collected
+    var LIVES = 3;
+    var lx, ly, hx, hy, pL, pR, lives, flash;       // right twin is the reflection of (lx,ly)
+    function rint(n){ return (Math.random() * n) | 0; }
+    function fuseLen(api){ return Math.max(FUSE_MIN, Math.round(FUSE0 - api.getScore() * SHR)); }
+    function spawnL(api){ var h = api.GRID >> 1, p; do { p = { x: rint(h), y: rint(api.GRID) }; } while (p.x === lx && p.y === ly); p.fuse = fuseLen(api); pL = p; }
+    function spawnR(api){ var G = api.GRID, h = G >> 1, rx = G - 1 - lx, p; do { p = { x: h + rint(G - h), y: rint(G) }; } while (p.x === rx && p.y === ly); p.fuse = fuseLen(api); pR = p; }
+    function reset(api){
+      var G = api.GRID, h = G >> 1;
+      lx = h >> 1; ly = G >> 1; hx = 0; hy = 0; lives = LIVES; flash = 0;
+      spawnL(api); spawnR(api);
+      pR.fuse = Math.round(pR.fuse * 0.6);           // stagger so the two don't co-expire
+    }
+    function onDir(nx, ny, api){ hx = nx; hy = ny; } // set heading; right twin mirrors it
+    function clamp(v, lo, hi){ return v < lo ? lo : v > hi ? hi : v; }
+    function loseLife(api, ts){ lives--; flash = (ts || 0) + 340; if (lives <= 0) api.gameOver(); }
+    function tick(api, ts){
+      var G = api.GRID, h = G >> 1, rx, ry;
+      lx = clamp(lx + hx, 0, h - 1); ly = clamp(ly + hy, 0, G - 1);   // step along heading
+      rx = G - 1 - lx; ry = ly;
+      if (lx === pL.x && ly === pL.y){ api.addScore(1); spawnL(api); } // collect
+      if (rx === pR.x && ry === pR.y){ api.addScore(1); spawnR(api); }
+      pL.fuse--; pR.fuse--;                                            // burn fuses
+      if (pL.fuse <= 0){ loseLife(api, ts); if (lives > 0) spawnL(api); }
+      if (lives > 0 && pR.fuse <= 0){ loseLife(api, ts); if (lives > 0) spawnR(api); }
+    }
+    function drawPellet(api, p, ts){
+      if (p.fuse > 24){ api.dot(p.x, p.y); return; }  // plenty of fuse: steady dot
+      var per = Math.max(120, p.fuse * 22);           // running low: blink, faster as it nears 0
+      if ((ts % per) < per * 0.55) api.dot(p.x, p.y);
+    }
+    function draw(api, ts){
+      var G = api.GRID, h = G >> 1, rx = G - 1 - lx, cs = api.cell, i, y;
+      var bx = api.fieldX + h * cs;                  // mirror divider (dashed)
+      for (y = 0; y < G; y++) if (y % 2 === 0) api.fillPx(bx, api.fieldY + y * cs + cs * 0.3, 1, cs * 0.4);
+      drawPellet(api, pL, ts); drawPellet(api, pR, ts);
+      if (!((ts < flash) && ((ts % 160) < 80))){ api.head(lx, ly); api.head(rx, ly); }  // twins (blink on hit)
+      var W = G * cs, sb = api.statusH, ps = Math.max(2, (sb / 4) | 0), gp = ps + 3;     // life pips
+      var x0 = (W - (lives * gp - 3)) / 2, yy = (sb - ps) / 2;
+      for (i = 0; i < lives; i++) api.fillPx(x0 + i * gp, yy, ps, ps);
+    }
+    function stepMs(api){ return STEP_MS; }
+    return { id: 'twins', title: 'MIRROR TWINS', grid: 16,
+             reset: reset, tick: tick, draw: draw, onDir: onDir, stepMs: stepMs };
+  })());
+
   // ===== init =====
   migrateSnake();
   window.addEventListener('resize', resize);
