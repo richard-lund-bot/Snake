@@ -117,7 +117,8 @@
   #scoreList li{display:flex; align-items:baseline; gap:8px; padding:3px 6px; border-radius:3px;}
   #scoreList li.you{background:var(--ink); color:var(--lcd);}
   #scoreList .rank{width:2.2ch; text-align:right; opacity:.65;}
-  #scoreList .nm{flex:1; text-align:left; padding-left:8px; letter-spacing:3px;}
+  #scoreList .nm{text-align:left; padding-left:8px; letter-spacing:3px;}
+  #scoreList .ph{flex:1; text-align:right; font-size:10px; opacity:.5; letter-spacing:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   #scoreList .sc{font-weight:800;}
   #scoreList .empty{justify-content:center; opacity:.6;}
   /* game menu list */
@@ -498,6 +499,58 @@
   }
   function ensureAtmosphere(){ if (atmoCacheKey() !== atmoKey) buildAtmosphere(); }
 
+  // shared "where in the year are we" -- feeds the particles, the progress bar and the score tags
+  var SEASON_NM = ['AUTUMN', 'WINTER', 'SPRING', 'SUMMER'], PHASE_NM = ['DAWN', 'NOON', 'DUSK'];
+  function yearInfo(){
+    if (!current || reachedRecord) return { p: 1, phase: 11, season: 3, record: true };
+    var p = score / horizonFor(current.id);
+    if (p > 1) return { p: 1, phase: 11, season: 3, record: true };
+    var phase = Math.floor(p * 12); if (phase > 11) phase = 11;
+    return { p: p, phase: phase, season: (phase / 3) | 0, record: false };
+  }
+  function phaseLabel(info){ return info.record ? 'RECORD' : SEASON_NM[info.season] + ' ' + PHASE_NM[info.phase % 3]; }
+
+  // ===== drifting seasonal particles (embers / snow / pollen / haze) =====
+  // A small pool drawn behind the haloed figures, so legibility is unaffected. Each
+  // season picks a drift profile + accent tinted by the live background; reduced-motion
+  // and the record (green) state show none.
+  var PROFILE = [
+    { n: 16, vy:  14, sway: 5, size: 2, accent: { r: 214, g: 150, b:  74 } }, // autumn: embers drift down, warm
+    { n: 26, vy:  20, sway: 6, size: 2, accent: { r: 236, g: 241, b: 248 } }, // winter: snow falls, many, cool
+    { n: 14, vy:  -5, sway: 9, size: 1, accent: { r: 206, g: 226, b: 176 } }, // spring: pollen rises + drifts
+    { n: 10, vy:  -9, sway: 4, size: 2, accent: { r: 245, g: 228, b: 170 } }  // summer: haze motes rise, few
+  ];
+  var PARTS = [], partFieldW = 0;
+  function seedParticles(){
+    var fw = cell * GRID; partFieldW = fw; PARTS = [];
+    for (var i = 0; i < 28; i++)
+      PARTS.push({ x: Math.random() * fw, y: Math.random() * fw, ph: Math.random() * 6.28, sp: 0.6 + Math.random() * 0.8 });
+  }
+  function updateParticles(dt){
+    if (REDUCED || !current) return;
+    if (cell * GRID !== partFieldW) seedParticles();
+    var info = yearInfo(); if (info.record) return;
+    var pr = PROFILE[info.season], fw = cell * GRID, ds = Math.min(dt, 80) / 1000;
+    for (var i = 0; i < pr.n; i++){
+      var p = PARTS[i];
+      p.y += pr.vy * p.sp * ds; p.ph += ds * 1.6; p.x += Math.sin(p.ph) * pr.sway * ds;
+      if (p.y > fw + 2) p.y = -2; else if (p.y < -2) p.y = fw + 2;
+      if (p.x > fw + 2) p.x = -2; else if (p.x < -2) p.x = fw + 2;
+    }
+  }
+  function drawParticles(){
+    if (REDUCED || !current || !PARTS.length) return;
+    var info = yearInfo(); if (info.record) return;
+    var pr = PROFILE[info.season], fw = cell * GRID;
+    ctx.fillStyle = rgb2hx(lerpC(liveBg, pr.accent, 0.5));
+    for (var i = 0; i < pr.n; i++){
+      var p = PARTS[i];
+      if (p.x < 0 || p.y < 0 || p.x >= fw || p.y >= fw) continue;
+      ctx.fillRect(px(fieldX + p.x), px(fieldY + p.y), pr.size, pr.size);
+    }
+    ctx.fillStyle = INK;
+  }
+
   // ===== sizing =====
   function resize(){
     var pad = 10, rect = screenEl.getBoundingClientRect();
@@ -523,11 +576,19 @@
     if (!current){ ctx.fillStyle = INK; return; }      // menu: the panel covers the canvas
     ensureAtmosphere();
     ctx.drawImage(atmoCanvas, fieldX, fieldY, cell * GRID, cell * GRID);  // dithered seasonal sky behind the field
+    drawParticles();                                    // drifting embers/snow/pollen/haze, behind the haloed figures
     ctx.fillStyle = INK;
     var fs = Math.max(1, Math.floor(statusH / 9));
     var fy = Math.round((statusH - 7 * fs) / 2);
     text(String(score), 2 * fs, fy, fs, false);
     text('HI' + String(best), W - 2 * fs, fy, fs, true);
+    var info = yearInfo(), segN = 12, sg = 1, barH = statusH >= 14 ? 2 : 1;  // 12-segment "year" progress along the top edge
+    var segW = (W - (segN - 1) * sg) / segN, dim = rgb2hx(lerpC(liveBg, hx2rgb(INK), 0.22));
+    for (var si = 0; si < segN; si++){
+      ctx.fillStyle = (info.record || si / segN < info.p) ? INK : dim;
+      ctx.fillRect(px(si * (segW + sg)), 0, Math.max(1, Math.round(segW)), barH);
+    }
+    ctx.fillStyle = INK;
     ctx.fillRect(0, statusH - 1, W, 1);                 // status divider
     ctx.fillRect(fieldX, fieldY, W, 1);                 // field border
     ctx.fillRect(fieldX, H - 1, W, 1);
@@ -549,7 +610,8 @@
       if (ts - lastStep >= ms){ lastStep = ts; current.tick(api, ts); }
     }
     if (!lastPaletteTs) lastPaletteTs = ts;
-    updatePalette(ts - lastPaletteTs, ts); lastPaletteTs = ts;
+    var dt = ts - lastPaletteTs; lastPaletteTs = ts;
+    updatePalette(dt, ts); updateParticles(dt);
     draw(ts);
   }
 
@@ -631,7 +693,7 @@
   }
   function saveEntry(){
     var nm = (initials.value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3) || 'AAA';
-    scores.push({ name: nm, score: score });
+    scores.push({ name: nm, score: score, phase: phaseLabel(yearInfo()) });
     scores.sort(function(a, b){ return b.score - a.score; });
     if (scores.length > MAX_SCORES) scores.length = MAX_SCORES;
     best = scores[0].score;
@@ -651,7 +713,8 @@
       var e = scores[i], you = hl && e.name === hlName && e.score === hlScore;
       if (you) hl = false;
       html += '<li' + (you ? ' class="you"' : '') + '><span class="rank">' + (i + 1) +
-              '</span><span class="nm">' + e.name + '</span><span class="sc">' + e.score + '</span></li>';
+              '</span><span class="nm">' + e.name + '</span><span class="ph">' + (e.phase || '') +
+              '</span><span class="sc">' + e.score + '</span></li>';
     }
     scoreList.innerHTML = html;
   }
