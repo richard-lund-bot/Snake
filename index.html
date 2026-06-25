@@ -231,7 +231,7 @@
 <body>
   <div id="app">
     <div id="device">
-      <div id="brand">LO-FI<sup id="brandVer">v2.1</sup><small id="brandSub">ARCADE</small></div>
+      <div id="brand">LO-FI<sup id="brandVer">v2.2</sup><small id="brandSub">ARCADE</small></div>
       <div id="screen">
         <canvas id="game"></canvas>
         <button id="pauseBtn" type="button" aria-label="Pause"><i></i><i></i></button>
@@ -592,7 +592,9 @@
       if (ctx) return true;
       try {
         var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false;
-        ctx = new AC(); master = ctx.createGain(); master.gain.value = 0; master.connect(ctx.destination); return true;
+        ctx = new AC();
+        try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch(e){}  // iOS 16.4+: play through the media channel, ignoring the silent/ringer switch
+        master = ctx.createGain(); master.gain.value = 0; master.connect(ctx.destination); return true;
       } catch(e){ ctx = null; return false; }
     }
     function buildBed(){
@@ -646,6 +648,7 @@
       if (v){
         if (!ensure()){ on = false; return false; }
         try { if (ctx.resume) ctx.resume(); } catch(e){}     // resume within the user gesture (autoplay policy)
+        try { var u = ctx.createBufferSource(); u.buffer = ctx.createBuffer(1, 1, ctx.sampleRate); u.connect(ctx.destination); u.start(0); } catch(e){}  // classic iOS unlock: start a 1-sample buffer inside the gesture
         if (!started){ started = true; try { buildBed(); } catch(e){ started = false; } }
         try { var t = ctx.currentTime; master.gain.cancelScheduledValues(t); master.gain.value = MASTER; } catch(e){}
         if (started){ try { season(0); } catch(e){} try { chime(ctx.currentTime + 0.12); } catch(e){} } // immediate drone + a confirmation blip so it's obvious
