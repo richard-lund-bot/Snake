@@ -231,7 +231,7 @@
 <body>
   <div id="app">
     <div id="device">
-      <div id="brand">LO-FI<sup id="brandVer">v2.2</sup><small id="brandSub">ARCADE</small></div>
+      <div id="brand">LO-FI<sup id="brandVer">v2.3</sup><small id="brandSub">ARCADE</small></div>
       <div id="screen">
         <canvas id="game"></canvas>
         <button id="pauseBtn" type="button" aria-label="Pause"><i></i><i></i></button>
@@ -584,10 +584,19 @@
   // phase-up, and a warm chord when the record falls. Every entry point is wrapped so
   // audio can never break the game loop; the context is created only after a gesture.
   var Sound = (function(){
-    var ctx, master, padGain, padLP, padOsc = [], crackle, started = false, on = false;
-    var PADS = [[110.00, 164.81, 220.00], [123.47, 185.00, 246.94], [130.81, 164.81, 196.00], [98.00, 146.83, 196.00]];
-    var PAD_REC = [130.81, 164.81, 196.00];           // levels/voicings are a first pass -- tune by ear in a browser
+    var ctx, master, musicLP, chordBus, bassBus, melBus, drumBus, crackle, noiseBuf, started = false, on = false;
     var MASTER = 0.7;
+    // ---- lo-fi loop: ii-V-I-vi in C, ~74bpm, swung; notes/levels are tunable by ear ----
+    var TEMPO = 74, spb = 60 / TEMPO, s16 = spb / 4, SWING = 0.012, STEPS = 16, TOTAL = 64; // 4-bar loop
+    function mtf(m){ return 440 * Math.pow(2, (m - 69) / 12); }
+    var CHORDS = [[50,53,57,60], [43,59,62,65], [48,52,55,59], [45,60,64,67]];   // Dm7  G9  Cmaj7  Am7
+    var BASS = [38, 43, 36, 45];                          // D2 G2 C2 A2 (roots)
+    var MEL = { 6:69, 12:72, 22:71, 28:74, 34:76, 42:72, 52:69, 58:67 };          // sparse music-box line (chord tones)
+    var KICK  = [1,0,0,0, 0,0,0,0, 1,0,0,1, 0,0,0,0];
+    var SNARE = [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0];
+    var HAT   = [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0];
+    var GAIN = { drum: 0.85, chord: 0.5, bass: 0.7, mel: 0.55, crackle: 0.16 };    // bus levels (tunable)
+    var timer = null, nextT = 0, step = 0;
     function ensure(){
       if (ctx) return true;
       try {
@@ -598,22 +607,77 @@
       } catch(e){ ctx = null; return false; }
     }
     function buildBed(){
-      var len = (ctx.sampleRate * 2) | 0, b = ctx.createBuffer(1, len, ctx.sampleRate), d = b.getChannelData(0);
-      for (var i = 0; i < len; i++){ var n = (Math.random() * 2 - 1) * 0.08; if (Math.random() < 0.0008) n += (Math.random() * 2 - 1) * 0.9; d[i] = n; }
-      crackle = ctx.createBufferSource(); crackle.buffer = b; crackle.loop = true;
-      var hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1100;
-      var cg = ctx.createGain(); cg.gain.value = 0.16; crackle.connect(hp); hp.connect(cg); cg.connect(master); crackle.start();
-      padGain = ctx.createGain(); padGain.gain.value = 0;
-      padLP = ctx.createBiquadFilter(); padLP.type = 'lowpass'; padLP.frequency.value = 900;
-      padGain.connect(padLP); padLP.connect(master);
-      for (var k = 0; k < 3; k++){ var o = ctx.createOscillator(); o.type = k === 0 ? 'triangle' : 'sine'; o.frequency.value = PADS[0][k]; o.connect(padGain); o.start(); padOsc.push(o); }
-      var lfo = ctx.createOscillator(), lg = ctx.createGain(); lfo.frequency.value = 0.05; lg.gain.value = 220; lfo.connect(lg); lg.connect(padLP.frequency); lfo.start();
+      // shared white noise (drums) + vinyl crackle bed
+      var len = (ctx.sampleRate * 2) | 0, nb = ctx.createBuffer(1, len, ctx.sampleRate), nd = nb.getChannelData(0);
+      for (var i = 0; i < len; i++) nd[i] = Math.random() * 2 - 1;
+      noiseBuf = nb;
+      var cb = ctx.createBuffer(1, len, ctx.sampleRate), cd = cb.getChannelData(0);
+      for (var j = 0; j < len; j++){ var n = (Math.random() * 2 - 1) * 0.06; if (Math.random() < 0.0009) n += (Math.random() * 2 - 1) * 0.9; cd[j] = n; }
+      crackle = ctx.createBufferSource(); crackle.buffer = cb; crackle.loop = true;
+      var hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1000;
+      var cg = ctx.createGain(); cg.gain.value = GAIN.crackle; crackle.connect(hp); hp.connect(cg); cg.connect(master); crackle.start();
+      // busses: chords/bass/melody run through a warm low-pass; drums stay brighter
+      musicLP = ctx.createBiquadFilter(); musicLP.type = 'lowpass'; musicLP.frequency.value = 3200; musicLP.Q.value = 0.4; musicLP.connect(master);
+      chordBus = ctx.createGain(); chordBus.gain.value = GAIN.chord; chordBus.connect(musicLP);
+      bassBus = ctx.createGain(); bassBus.gain.value = GAIN.bass; bassBus.connect(musicLP);
+      melBus = ctx.createGain(); melBus.gain.value = GAIN.mel; melBus.connect(musicLP);
+      drumBus = ctx.createGain(); drumBus.gain.value = GAIN.drum; drumBus.connect(master);
+      var tl = ctx.createOscillator(), tg = ctx.createGain(); tl.frequency.value = 5.2; tg.gain.value = 0.1; tl.connect(tg); tg.connect(chordBus.gain); tl.start(); // wurli tremolo
     }
-    function season(i){
-      if (!padOsc.length) return;
-      var ch = i < 0 ? PAD_REC : PADS[i], t = ctx.currentTime;
-      for (var k = 0; k < padOsc.length; k++){ try { padOsc[k].frequency.setTargetAtTime(ch[k], t, 0.6); } catch(e){} }
-      try { padGain.gain.setTargetAtTime(0.18, t, 0.8); } catch(e){}
+    function noiseSrc(){ var s = ctx.createBufferSource(); s.buffer = noiseBuf; return s; }
+    function env(g, t, peak, dur, atk){ g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + (atk || 0.005)); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); }
+    function kick(t){
+      var o = ctx.createOscillator(), g = ctx.createGain();
+      o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+      g.gain.setValueAtTime(0.9, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+      o.connect(g); g.connect(drumBus); o.start(t); o.stop(t + 0.32);
+    }
+    function snare(t){
+      var nz = noiseSrc(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+      f.type = 'highpass'; f.frequency.value = 1400; env(g, t, 0.4, 0.16); nz.connect(f); f.connect(g); g.connect(drumBus); nz.start(t); nz.stop(t + 0.2);
+      var o = ctx.createOscillator(), og = ctx.createGain(); o.type = 'triangle'; o.frequency.value = 190; env(og, t, 0.18, 0.11); o.connect(og); og.connect(drumBus); o.start(t); o.stop(t + 0.13);
+    }
+    function hat(t, vel, open){
+      var nz = noiseSrc(), f = ctx.createBiquadFilter(), g = ctx.createGain(), dur = open ? 0.16 : 0.045;
+      f.type = 'highpass'; f.frequency.value = 8000; env(g, t, vel, dur); nz.connect(f); f.connect(g); g.connect(drumBus); nz.start(t); nz.stop(t + dur + 0.02);
+    }
+    function chord(arr, t, dur, vel){
+      for (var i = 0; i < arr.length; i++){
+        var fr = mtf(arr[i]), o = ctx.createOscillator(), o2 = ctx.createOscillator(), g = ctx.createGain();
+        o.type = 'sine'; o2.type = 'triangle'; o.frequency.value = fr; o2.frequency.value = fr; o2.detune.value = 7;
+        env(g, t, vel, dur, 0.03); o.connect(g); o2.connect(g); g.connect(chordBus); o.start(t); o2.start(t); o.stop(t + dur + 0.1); o2.stop(t + dur + 0.1);
+      }
+    }
+    function bass(m, t, dur){
+      var o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'triangle'; o.frequency.value = mtf(m);
+      env(g, t, 0.32, dur, 0.02); o.connect(g); g.connect(bassBus); o.start(t); o.stop(t + dur + 0.05);
+    }
+    function bell(m, t){
+      var fr = mtf(m), o = ctx.createOscillator(), o2 = ctx.createOscillator(), g = ctx.createGain(), g2 = ctx.createGain();
+      o.type = 'sine'; o2.type = 'sine'; o.frequency.value = fr; o2.frequency.value = fr * 2; g2.gain.value = 0.3;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.22, t + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+      o2.connect(g2); g2.connect(g); o.connect(g); g.connect(melBus); o.start(t); o2.start(t); o.stop(t + 0.95); o2.stop(t + 0.95);
+    }
+    function scheduleStep(gs, t){
+      var bar = (gs / 16 | 0) % 4, sib = gs % 16, sw = (sib % 4 === 2) ? t + SWING : t;
+      if (KICK[sib]) kick(t);
+      if (SNARE[sib]) snare(t);
+      if (HAT[sib]) hat(sw, sib % 4 === 0 ? 0.16 : 0.1, sib === 14 && bar % 2 === 1);
+      if (sib === 0){ chord(CHORDS[bar], t, spb * 3, 0.07); bass(BASS[bar], t, spb * 1.6); }
+      else if (sib === 8){ chord(CHORDS[bar], t, spb * 1.6, 0.05); bass(BASS[bar], t, spb * 1.4); }
+      if (MEL[gs]) bell(MEL[gs], sw);
+    }
+    function tick(){
+      if (!ctx) return;
+      if (nextT < ctx.currentTime - 0.25) nextT = ctx.currentTime + 0.05;   // resync after a background-tab stall
+      while (nextT < ctx.currentTime + 0.2){ try { scheduleStep(step, nextT); } catch(e){} nextT += s16; step = (step + 1) % TOTAL; }
+    }
+    function startSeq(){ if (timer) return; nextT = ctx.currentTime + 0.12; step = 0; timer = setInterval(tick, 25); }
+    function stopSeq(){ if (timer){ clearInterval(timer); timer = null; } }
+    function season(i){     // subtle per-season brightness on the music low-pass
+      if (!musicLP) return;
+      var cut = i < 0 ? 3200 : [2600, 3000, 3600, 4200][i] || 3200;
+      try { musicLP.frequency.setTargetAtTime(cut, ctx.currentTime, 1.5); } catch(e){}
     }
     function chime(when){
       try {
@@ -651,9 +715,10 @@
         try { var u = ctx.createBufferSource(); u.buffer = ctx.createBuffer(1, 1, ctx.sampleRate); u.connect(ctx.destination); u.start(0); } catch(e){}  // classic iOS unlock: start a 1-sample buffer inside the gesture
         if (!started){ started = true; try { buildBed(); } catch(e){ started = false; } }
         try { var t = ctx.currentTime; master.gain.cancelScheduledValues(t); master.gain.value = MASTER; } catch(e){}
-        if (started){ try { season(0); } catch(e){} try { chime(ctx.currentTime + 0.12); } catch(e){} } // immediate drone + a confirmation blip so it's obvious
+        if (started){ try { season(0); } catch(e){} try { startSeq(); } catch(e){} try { chime(ctx.currentTime + 0.18); } catch(e){} } // start the loop + a confirmation blip
       } else {
-        try { var t2 = ctx.currentTime; master.gain.cancelScheduledValues(t2); master.gain.setTargetAtTime(0, t2, 0.2); } catch(e){}
+        try { stopSeq(); } catch(e){}
+        try { var t2 = ctx.currentTime; master.gain.cancelScheduledValues(t2); master.gain.setTargetAtTime(0, t2, 0.25); } catch(e){}
       }
       return on;
     }
