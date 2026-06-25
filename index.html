@@ -231,7 +231,7 @@
 <body>
   <div id="app">
     <div id="device">
-      <div id="brand">LO-FI<sup id="brandVer">v2.6</sup><small id="brandSub">ARCADE</small></div>
+      <div id="brand">LO-FI<sup id="brandVer">v2.7</sup><small id="brandSub">ARCADE</small></div>
       <div id="screen">
         <canvas id="game"></canvas>
         <button id="pauseBtn" type="button" aria-label="Pause"><i></i><i></i></button>
@@ -385,6 +385,24 @@
     ctx.fillRect(px(sx + (cell - 1) / 2 - 1), px(sy + (cell - 1) / 2 - 1), 2, 2);
     ctx.fillStyle = INK;
   }
+  // ===== "weather": random, telegraphed anomalies that bend each game's rules =====
+  // A shared clock fires brief events (off -> telegraph -> active -> off). Each game
+  // reads api.anom and responds its own way; score doubles while an event is active.
+  var anom = { state: 'off', until: 0, next: 0, dir: { x: 1, y: 0 }, mult: 1 };
+  function anomGap(){ var s = current ? score : 0, g = 8000 - Math.min(5000, s * 110) + Math.random() * 5000; return g < 2600 ? 2600 : g; }
+  function anomDur(){ return current && current.id === 'blink' ? 600 : 1700; }   // the blackout is brief
+  function resetAnom(){ anom.state = 'off'; anom.until = 0; anom.next = 0; anom.mult = 1; }
+  function updateAnom(ts){
+    if (!current || state !== 'playing'){ anom.state = 'off'; anom.mult = 1; return; }
+    if (anom.state === 'off'){
+      if (!anom.next) anom.next = ts + anomGap();
+      if (ts >= anom.next){ anom.state = 'tele'; anom.until = ts + 650; var d = [[1, 0], [-1, 0], [0, 1], [0, -1]][(Math.random() * 4) | 0]; anom.dir = { x: d[0], y: d[1] }; }
+    } else if (anom.state === 'tele'){
+      if (ts >= anom.until){ anom.state = 'on'; anom.until = ts + anomDur(); }
+    } else if (ts >= anom.until){ anom.state = 'off'; anom.next = ts + anomGap(); }
+    anom.mult = anom.state === 'on' ? 2 : 1;
+  }
+
   var api = {
     GRID: GRID, cell: cell, fieldX: fieldX, fieldY: fieldY, statusH: statusH,
     block: fillCell,                                    // solid cell (snake body)
@@ -398,8 +416,10 @@
     beam: function(gx, gy){ haloRect(fieldX + gx * cell + (cell >> 1) - 1, fieldY + gy * cell + (cell >> 1) - 1, 2, 2); },
     fillPx: function(x, y, w, h){ ctx.fillRect(px(x), px(y), Math.max(1, Math.round(w)), Math.max(1, Math.round(h))); },  // raw canvas-pixel rect (effects)
     text: text, glyph: glyph,
+    dim: function(a){ ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = '#0a0810'; ctx.fillRect(fieldX, fieldY, cell * GRID, cell * GRID); ctx.restore(); }, // dark overlay (blackout/storm)
+    anom: anom,
     setScore: function(n){ score = n; if (score > best) best = score; },
-    addScore: function(d){ api.setScore(score + (d || 1)); },
+    addScore: function(d){ api.setScore(score + (d || 1) * anom.mult); },         // chaos pays double
     getScore: function(){ return score; },
     gameOver: function(){ endGame(false); },
     win: function(){ endGame(true); },
@@ -596,9 +616,11 @@
     if (cell * GRID !== partFieldW) seedParticles();
     var info = yearInfo(); if (info.record) return;
     var pr = PROFILE[info.season], fw = cell * GRID, ds = Math.min(dt, 80) / 1000;
+    var wind = (current.id === 'snake' && anom.state !== 'off') ? (anom.state === 'on' ? 95 : 45) : 0; // gust streaks the particles
     for (var i = 0; i < pr.n; i++){
       var p = PARTS[i];
       p.y += pr.vy * p.sp * ds; p.ph += ds * 1.6; p.x += Math.sin(p.ph) * pr.sway * ds;
+      p.x += anom.dir.x * wind * ds; p.y += anom.dir.y * wind * ds;
       if (p.y > fw + 2) p.y = -2; else if (p.y < -2) p.y = fw + 2;
       if (p.x > fw + 2) p.x = -2; else if (p.x < -2) p.x = fw + 2;
     }
@@ -833,6 +855,7 @@
     requestAnimationFrame(loop);
     if (state === 'playing'){
       if (!lastStep) lastStep = ts;
+      updateAnom(ts);
       var ms = current.stepMs ? current.stepMs(api) : 130;
       if (ts - lastStep >= ms){ lastStep = ts; current.tick(api, ts); }
     }
@@ -894,6 +917,7 @@
     g.reset(api);                       // populate state before the first draw
     snapPalette();                      // open the run in autumn dawn, not a mid-fade from the menu green
     Sound.resetRun();
+    resetAnom();
     resize();
     state = 'playing'; lastStep = 0; pauseBtn.classList.add('show');
   }
@@ -1031,12 +1055,12 @@
   // ---- Snake ----
   register((function(){
     var START_LEN = 3, BASE = 130, MINS = 70, STEP = 4, MIN_STEP = 55;
-    var snake, dir, queue, food;
+    var snake, dir, queue, food, gust;
     function reset(api){
       var G = api.GRID, c = Math.floor(G / 2);
       snake = [];
       for (var i = 0; i < START_LEN; i++) snake.push({ x: c - i, y: c });
-      dir = { x: 1, y: 0 }; queue = [];
+      dir = { x: 1, y: 0 }; queue = []; gust = 0;
       placeFood(api);
     }
     function placeFood(api){
@@ -1065,6 +1089,14 @@
       for (var i = 0; i < limit; i++) if (snake[i].x === head.x && snake[i].y === head.y) return api.gameOver();
       snake.unshift(head);
       if (ate){ api.addScore(1); placeFood(api); } else snake.pop();
+      if (api.anom.state === 'on'){                       // GUST: slide the whole snake downwind if there's room (never into a wall)
+        if (++gust % 3 === 0){
+          var dx = api.anom.dir.x, dy = api.anom.dir.y, ok = true, j;
+          for (j = 0; j < snake.length; j++){ var sx = snake[j].x + dx, sy = snake[j].y + dy; if (sx < 0 || sy < 0 || sx >= G || sy >= G){ ok = false; break; } }
+          if (ok){ for (j = 0; j < snake.length; j++){ snake[j].x += dx; snake[j].y += dy; }
+            for (j = 0; j < snake.length; j++) if (snake[j].x === food.x && snake[j].y === food.y){ placeFood(api); break; } }
+        }
+      } else gust = 0;
     }
     function draw(api, ts){
       if ((ts % 600) < 420) api.dot(food.x, food.y);     // food blinks
@@ -1112,7 +1144,7 @@
     }
     function onDir(nx, ny, api){ aim = { x: nx, y: ny }; }
     function tick(api, ts){
-      var P = ctr(api), an = aimName(), adv = ease(ADV0, ADV_MIN), i, f, dx, dy;
+      var P = ctr(api), an = aimName(), adv = api.anom.state === 'on' ? 2 : ease(ADV0, ADV_MIN), i, f, dx, dy; // blackout: foes surge
       t++;
       for (i = foes.length - 1; i >= 0; i--){           // reverse: safe to splice on banish
         f = foes[i]; dx = f.x - P.x; dy = f.y - P.y;
@@ -1161,6 +1193,8 @@
           api.fillPx(cx + Math.cos(ang) * rad - sz / 2, cy + Math.sin(ang) * rad - sz / 2, sz, sz);
         }
       }
+      if (api.anom.state === 'on') api.dim(0.55);                                 // BLACKOUT: the lights cut and foes surge
+      else if (api.anom.state === 'tele') api.dim(REDUCED ? 0.12 : ((ts % 200) < 100 ? 0.22 : 0.05)); // flicker warning
     }
     function stepMs(api){ return STEP_MS; }
     return { id: 'blink', title: "DON'T BLINK", grid: 16,
@@ -1190,7 +1224,7 @@
     function tick(api, ts){
       var G = api.GRID, h = G >> 1, rx, ry;
       lx = clamp(lx + hx, 0, h - 1); ly = clamp(ly + hy, 0, G - 1);   // step along heading
-      rx = G - 1 - lx; ry = ly;
+      rx = G - 1 - lx; ry = api.anom.state === 'on' ? G - 1 - ly : ly;   // MIRROR FLIP: the twin's y-axis inverts
       if (lx === pL.x && ly === pL.y){ api.addScore(1); spawnL(api); } // collect
       if (rx === pR.x && ry === pR.y){ api.addScore(1); spawnR(api); }
       pL.fuse--; pR.fuse--;                                            // burn fuses
@@ -1203,11 +1237,17 @@
       if ((ts % per) < per * 0.55) api.dot(p.x, p.y);
     }
     function draw(api, ts){
-      var G = api.GRID, h = G >> 1, rx = G - 1 - lx, cs = api.cell, i, y;
-      var bx = api.fieldX + h * cs;                  // mirror divider (dashed)
+      var G = api.GRID, h = G >> 1, rx = G - 1 - lx, cs = api.cell, i, y, x2;
+      var bx = api.fieldX + h * cs;                  // vertical mirror divider (dashed)
       for (y = 0; y < G; y++) if (y % 2 === 0) api.fillPx(bx, api.fieldY + y * cs + cs * 0.3, 1, cs * 0.4);
+      var flip = api.anom.state === 'on', tele = api.anom.state === 'tele';
+      if (flip || (tele && (REDUCED || (ts % 200) < 130))){    // MIRROR FLIP telegraph/active: a horizontal axis appears
+        var by = api.fieldY + h * cs;
+        for (x2 = 0; x2 < G; x2++) if (flip || x2 % 2 === 0) api.fillPx(api.fieldX + x2 * cs + cs * 0.3, by, cs * 0.4, 1);
+      }
+      var ry = flip ? G - 1 - ly : ly;
       drawPellet(api, pL, ts); drawPellet(api, pR, ts);
-      if (!((ts < flash) && ((ts % 160) < 80))){ api.head(lx, ly); api.head(rx, ly); }  // twins (blink on hit)
+      if (!((ts < flash) && ((ts % 160) < 80))){ api.head(lx, ly); api.head(rx, ry); }  // twins (blink on hit)
       var W = G * cs, sb = api.statusH, ps = Math.max(2, (sb / 4) | 0), gp = ps + 3;     // life pips
       var x0 = (W - (lives * gp - 3)) / 2, yy = (sb - ps) / 2;
       for (i = 0; i < lives; i++) api.fillPx(x0 + i * gp, yy, ps, ps);
@@ -1249,6 +1289,9 @@
       var pr = prow(api), G = api.GRID, i, b;
       t++;
       if (pendingDx){ px = Math.max(0, Math.min(G - 1, px + pendingDx)); pendingDx = 0; }  // apply queued step
+      if (api.anom.state === 'on'){                        // POLARITY STORM: high walls randomly flip charge mid-fall
+        for (var s2 = walls.length - 1; s2 >= 0; s2--) if (walls[s2].y < pr - 2 && Math.random() < 0.06) walls[s2].pol = -walls[s2].pol;
+      }
       for (i = walls.length - 1; i >= 0; i--){
         b = walls[i]; b.y++;
         if (b.y === pr){                               // reached the player row -> resolve
@@ -1275,6 +1318,8 @@
       var W = G * api.cell, sb = api.statusH, ps = Math.max(2, (sb / 4) | 0), gp = ps + 3;   // life pips
       var x0 = (W - (lives * gp - 3)) / 2, yy = (sb - ps) / 2;
       for (i = 0; i < lives; i++) api.fillPx(x0 + i * gp, yy, ps, ps);
+      if (api.anom.state === 'on') api.dim(0.14);                                 // STORM darkening
+      else if (api.anom.state === 'tele') api.dim(REDUCED ? 0.1 : ((ts % 180) < 90 ? 0.2 : 0.04)); // flicker warning
     }
     function stepMs(api){ return Math.max(STEP_MIN, Math.round(STEP0 - t / STEP_DEN)); }
     return { id: 'polarity', title: 'POLARITY', grid: 16,
