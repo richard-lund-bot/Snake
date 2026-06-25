@@ -231,7 +231,7 @@
 <body>
   <div id="app">
     <div id="device">
-      <div id="brand">LO-FI<sup id="brandVer">v2.8</sup><small id="brandSub">ARCADE</small></div>
+      <div id="brand">LO-FI<sup id="brandVer">v2.9</sup><small id="brandSub">ARCADE</small></div>
       <div id="screen">
         <canvas id="game"></canvas>
         <button id="pauseBtn" type="button" aria-label="Pause"><i></i><i></i></button>
@@ -390,13 +390,13 @@
   // reads api.anom and responds its own way; score doubles while an event is active.
   var anom = { state: 'off', until: 0, next: 0, dir: { x: 1, y: 0 }, mult: 1 };
   function anomGap(){ var s = current ? score : 0, g = 8000 - Math.min(5000, s * 110) + Math.random() * 5000; return g < 2600 ? 2600 : g; }
-  function anomDur(){ return current && current.id === 'blink' ? 600 : 1700; }   // the blackout is brief
+  function anomDur(){ return current && current.id === 'blink' ? 1500 : 1700; }  // the blackout lasts a good while
   function resetAnom(){ anom.state = 'off'; anom.until = 0; anom.next = 0; anom.mult = 1; }
   function updateAnom(ts){
     if (!current || state !== 'playing'){ anom.state = 'off'; anom.mult = 1; return; }
     if (anom.state === 'off'){
       if (!anom.next) anom.next = ts + anomGap();
-      if (ts >= anom.next){ anom.state = 'tele'; anom.until = ts + 650; var d = [[1, 0], [-1, 0], [0, 1], [0, -1]][(Math.random() * 4) | 0]; anom.dir = { x: d[0], y: d[1] }; }
+      if (ts >= anom.next){ anom.state = 'tele'; anom.until = ts + 650; var dl = current && current.id === 'polarity' ? [[1, 0], [-1, 0]] : [[1, 0], [-1, 0], [0, 1], [0, -1]], d = dl[(Math.random() * dl.length) | 0]; anom.dir = { x: d[0], y: d[1] }; } // polarity pull is horizontal
     } else if (anom.state === 'tele'){
       if (ts >= anom.until){ anom.state = 'on'; anom.until = ts + anomDur(); }
     } else if (ts >= anom.until){ anom.state = 'off'; anom.next = ts + anomGap(); }
@@ -615,7 +615,7 @@
     if (cell * GRID !== partFieldW) seedParticles();
     var info = yearInfo(); if (info.record) return;
     var pr = PROFILE[info.season], fw = cell * GRID, ds = Math.min(dt, 80) / 1000;
-    var wind = (current.id === 'snake' && anom.state !== 'off') ? (anom.state === 'on' ? 95 : 45) : 0; // gust streaks the particles
+    var wind = ((current.id === 'snake' || current.id === 'polarity') && anom.state !== 'off') ? (anom.state === 'on' ? 95 : 45) : 0; // gust / magnet streaks the particles
     for (var i = 0; i < pr.n; i++){
       var p = PARTS[i];
       p.y += pr.vy * p.sp * ds; p.ph += ds * 1.6; p.x += Math.sin(p.ph) * pr.sway * ds;
@@ -1192,8 +1192,8 @@
           api.fillPx(cx + Math.cos(ang) * rad - sz / 2, cy + Math.sin(ang) * rad - sz / 2, sz, sz);
         }
       }
-      if (api.anom.state === 'on') api.dim(0.55);                                 // BLACKOUT: the lights cut and foes surge
-      else if (api.anom.state === 'tele') api.dim(REDUCED ? 0.12 : ((ts % 200) < 100 ? 0.22 : 0.05)); // flicker warning
+      if (api.anom.state === 'on') api.dim(0.96);                                 // BLACKOUT: lights out -- only the foes' faint outlines remain, and they surge
+      else if (api.anom.state === 'tele') api.dim(REDUCED ? 0.12 : ((ts % 200) < 100 ? 0.28 : 0.05)); // flicker warning
     }
     function stepMs(api){ return STEP_MS; }
     return { id: 'blink', title: "DON'T BLINK", grid: 16,
@@ -1288,8 +1288,8 @@
       var pr = prow(api), G = api.GRID, i, b;
       t++;
       if (pendingDx){ px = Math.max(0, Math.min(G - 1, px + pendingDx)); pendingDx = 0; }  // apply queued step
-      if (api.anom.state === 'on'){                        // POLARITY STORM: high walls randomly flip charge mid-fall
-        for (var s2 = walls.length - 1; s2 >= 0; s2--) if (walls[s2].y < pr - 2 && Math.random() < 0.06) walls[s2].pol = -walls[s2].pol;
+      if (api.anom.state === 'on' && t % 2 === 0){         // MAGNET: a field drags you sideways -- fight it while you line up the gap
+        px = Math.max(0, Math.min(G - 1, px + (api.anom.dir.x || 1)));
       }
       for (i = walls.length - 1; i >= 0; i--){
         b = walls[i]; b.y++;
@@ -1317,8 +1317,10 @@
       var W = G * api.cell, sb = api.statusH, ps = Math.max(2, (sb / 4) | 0), gp = ps + 3;   // life pips
       var x0 = (W - (lives * gp - 3)) / 2, yy = (sb - ps) / 2;
       for (i = 0; i < lives; i++) api.fillPx(x0 + i * gp, yy, ps, ps);
-      if (api.anom.state === 'on') api.dim(0.14);                                 // STORM darkening
-      else if (api.anom.state === 'tele') api.dim(REDUCED ? 0.1 : ((ts % 180) < 90 ? 0.2 : 0.04)); // flicker warning
+      if (api.anom.state !== 'off'){                        // MAGNET indicator: a bar glows on the edge you're being dragged toward
+        var pull = api.anom.dir.x || 1, ex = pull > 0 ? G - 1 : 0, cs2 = api.cell, show = api.anom.state === 'on' || (ts % 200) < 130;
+        if (show) for (var yy2 = 0; yy2 < G; yy2++) api.fillPx(api.fieldX + ex * cs2 + (pull > 0 ? cs2 - 2 : 0), api.fieldY + yy2 * cs2, 2, cs2);
+      }
     }
     function stepMs(api){ return Math.max(STEP_MIN, Math.round(STEP0 - t / STEP_DEN)); }
     return { id: 'polarity', title: 'POLARITY', grid: 16,
