@@ -231,7 +231,7 @@
 <body>
   <div id="app">
     <div id="device">
-      <div id="brand">LO-FI<sup id="brandVer">v2.5</sup><small id="brandSub">ARCADE</small></div>
+      <div id="brand">LO-FI<sup id="brandVer">v2.6</sup><small id="brandSub">ARCADE</small></div>
       <div id="screen">
         <canvas id="game"></canvas>
         <button id="pauseBtn" type="button" aria-label="Pause"><i></i><i></i></button>
@@ -292,7 +292,7 @@
 
   // ===== console constants =====
   var STATUS_ROWS = 1.7, MAX_SCORES = 10;
-  var LCD_BG = '#a8ba84', INK = '#1f2a14';
+  var LCD_BG = '#a8ba84', INK = '#1f2a14', HALO = '#dfeecb';
 
   // ===== DOM =====
   var canvas = document.getElementById('game'),
@@ -373,7 +373,7 @@
 
   // ===== draw API handed to games (coords are grid cells in the play field) =====
   function haloRect(x, y, w, h){          // figure + 1px base-background keyline: the figure keeps its
-    ctx.fillStyle = LCD_BG;               // guaranteed contrast at the silhouette edge over any busy field
+    ctx.fillStyle = HALO;                 // light keyline so the figure reads over any band of the scene
     ctx.fillRect(px(x) - 1, px(y) - 1, w + 2, h + 2);
     ctx.fillStyle = INK;
     ctx.fillRect(px(x), px(y), w, h);
@@ -381,7 +381,7 @@
   function fillCell(gx, gy){ haloRect(fieldX + gx * cell, fieldY + gy * cell, cell - 1, cell - 1); }
   function punchCenter(gx, gy){
     var sx = fieldX + gx * cell, sy = fieldY + gy * cell;
-    ctx.fillStyle = LCD_BG;
+    ctx.fillStyle = HALO;
     ctx.fillRect(px(sx + (cell - 1) / 2 - 1), px(sy + (cell - 1) / 2 - 1), 2, 2);
     ctx.fillStyle = INK;
   }
@@ -414,33 +414,52 @@
   // (dark figures on a lighter ground) so a cross-fade never dips into a
   // low-contrast middle and lose the snake — true dark night waits for the
   // atmosphere + halo layers, where inversion becomes safe.
+  // Each phase is a 4-colour pixel-art sky (top -> horizon) + a dark figure ink +
+  // a light glow accent. The whole UI tints to this, so every phase feels distinct.
   var YEAR = [
-    { name: 'AUTUMN DAWN',      bg: '#d9b48f', ink: '#43291a' },   // warm sand / cocoa
-    { name: 'AUTUMN MIDDAY',    bg: '#e8c887', ink: '#553011' },   // gold / rust
-    { name: 'AUTUMN NIGHTFALL', bg: '#b06640', ink: '#241008' },   // ember / umber
-    { name: 'WINTER DAWN',      bg: '#c6cdd7', ink: '#384350' },   // cold pewter / slate
-    { name: 'WINTER MIDDAY',    bg: '#e0e9ef', ink: '#42606f' },   // pale ice / steel
-    { name: 'WINTER NIGHTFALL', bg: '#6b7d94', ink: '#15202f' },   // dusky blue / navy-black
-    { name: 'SPRING DAWN',      bg: '#d9cfe1', ink: '#473a57' },   // lilac mist / plum
-    { name: 'SPRING MIDDAY',    bg: '#cfe3c3', ink: '#36562b' },   // fresh green / leaf
-    { name: 'SPRING NIGHTFALL', bg: '#7a986f', ink: '#1b2916' },   // dusk meadow / moss
-    { name: 'SUMMER DAWN',      bg: '#f0d7ad', ink: '#6a4626' },   // hazy morning / bark
-    { name: 'SUMMER MIDDAY',    bg: '#f3dc97', ink: '#6d521d' },   // bright haze / amber
-    { name: 'SUMMER SUNSET',    bg: '#9a7259', ink: '#221019' }    // "your pick" — Vinyl clay / wine-dark
+    { name: 'AUTUMN DAWN',   sky: ['#4f3f5a','#8a5d6e','#c5825f','#e6b16b'], ink: '#2c1c14', glow: '#ffe0ad' },
+    { name: 'AUTUMN MIDDAY', sky: ['#a06b3a','#cb9450','#e6c07a','#f2dca2'], ink: '#3a2410', glow: '#fff2cc' },
+    { name: 'AUTUMN DUSK',   sky: ['#382838','#6b3b44','#a85a3c','#d8843c'], ink: '#221008', glow: '#ffc474' },
+    { name: 'WINTER DAWN',   sky: ['#3e4a63','#6f7d97','#abb8c8','#dae0e8'], ink: '#212e3d', glow: '#eef4ff' },
+    { name: 'WINTER MIDDAY', sky: ['#7ea0b8','#a8c4d6','#d2e4ee','#eef4f7'], ink: '#324f5e', glow: '#ffffff' },
+    { name: 'WINTER DUSK',   sky: ['#2b3450','#4a5572','#7a6f90','#b48c9c'], ink: '#19202f', glow: '#d4c6e4' },
+    { name: 'SPRING DAWN',   sky: ['#564a6b','#977fa0','#cf9fae','#eed4b8'], ink: '#2c2440', glow: '#ffe8d2' },
+    { name: 'SPRING MIDDAY', sky: ['#7fa657','#aacb7e','#d3e6a6','#ecf4c8'], ink: '#37501f', glow: '#f8ffd6' },
+    { name: 'SPRING DUSK',   sky: ['#403a54','#6f6684','#9c8f8a','#c8b196'], ink: '#231e30', glow: '#ecd6b2' },
+    { name: 'SUMMER DAWN',   sky: ['#4a4668','#8a6f96','#d18f84','#f2c486'], ink: '#281c2a', glow: '#ffe4aa' },
+    { name: 'SUMMER MIDDAY', sky: ['#3f8aa8','#74b2c2','#bfe0d6','#f0e8b2'], ink: '#1f3a40', glow: '#fffce4' },
+    { name: 'SUMMER SUNSET', sky: ['#3a2440','#7a3a54','#c4604c','#ea9c58'], ink: '#20121a', glow: '#ffcca2' }
   ];
-  var RECORD_PAL = { name: 'RECORD', bg: '#a8ba84', ink: '#1f2a14' }; // beat the #1 -> the classic arcade green
+  var RECORD_PAL = { name: 'RECORD', sky: ['#7a8c5c','#95a96f','#a8ba84','#c2d09c'], ink: '#1f2a14', glow: '#e0f0b0' };
+  var HOME_PAL   = { name: 'HOME',   sky: ['#34304e','#574f70','#897e96','#b9a6a8'], ink: '#1f1d2e', glow: '#d8c8d8' }; // calm twilight for the menu
   var BASELINE = { snake: 30, blink: 20, twins: 25, polarity: 22 };   // fresh-player horizon floor, per game (tunable)
 
   var REDUCED = false;
   try { REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch(e){}
 
   var runBest = 0, reachedRecord = false, recordFlash = 0, lastPaletteTs = 0; // per-run snapshot + green latch + bloom
-  var liveBg = { r: 168, g: 186, b: 132 }, liveInk = { r: 31, g: 42, b: 20 }; // displayed palette, eased toward target
+  var liveSky = [{r:52,g:48,b:78},{r:87,g:79,b:112},{r:137,g:126,b:150},{r:185,g:166,b:168}], liveInk = {r:31,g:29,b:46}, liveGlow = {r:216,g:200,b:216}; // eased palette: sky[4] + ink + glow
 
   function hx2rgb(h){ return { r: parseInt(h.slice(1, 3), 16), g: parseInt(h.slice(3, 5), 16), b: parseInt(h.slice(5, 7), 16) }; }
   function ch(v){ v = Math.round(v); v = v < 0 ? 0 : v > 255 ? 255 : v; return (v < 16 ? '0' : '') + v.toString(16); }
   function rgb2hx(c){ return '#' + ch(c.r) + ch(c.g) + ch(c.b); }
   function lerpC(a, b, t){ return { r: a.r + (b.r - a.r) * t, g: a.g + (b.g - a.g) * t, b: a.b + (b.b - a.b) * t }; }
+  var WHITE = { r: 255, g: 255, b: 255 };
+  function palRgb(p){ return { sky: [hx2rgb(p.sky[0]), hx2rgb(p.sky[1]), hx2rgb(p.sky[2]), hx2rgb(p.sky[3])], ink: hx2rgb(p.ink), glow: hx2rgb(p.glow) }; }
+  var YEARrgb = YEAR.map(palRgb), RECrgb = palRgb(RECORD_PAL), HOMErgb = palRgb(HOME_PAL);
+  function lerpPal(a, b, t){ return { sky: [lerpC(a.sky[0], b.sky[0], t), lerpC(a.sky[1], b.sky[1], t), lerpC(a.sky[2], b.sky[2], t), lerpC(a.sky[3], b.sky[3], t)], ink: lerpC(a.ink, b.ink, t), glow: lerpC(a.glow, b.glow, t) }; }
+  // push the live palette to the whole UI (screen bezel, panels, buttons, shell) for immersion
+  var themeKey = '';
+  function applyTheme(){
+    var key = qChan(LCD_BG) + '|' + qChan(INK); if (key === themeKey) return; themeKey = key;
+    try {
+      var rs = document.documentElement.style;
+      rs.setProperty('--lcd', LCD_BG); rs.setProperty('--lcd-2', rgb2hx(lerpC(liveSky[2], liveSky[0], 0.45)));
+      rs.setProperty('--ink', INK); rs.setProperty('--accent', rgb2hx(liveGlow));
+      rs.setProperty('--body-0', rgb2hx(lerpC(liveSky[0], { r: 18, g: 17, b: 22 }, 0.5)));
+      rs.setProperty('--body-1', rgb2hx(lerpC(liveSky[0], { r: 8, g: 8, b: 10 }, 0.78)));
+    } catch(e){}
+  }
 
   // contrast guarantee: figures are pushed to at least this WCAG ratio against the
   // background every frame, so the snake can never wash out -- whatever the season,
@@ -461,16 +480,14 @@
 
   // two-tone target for the present moment (home rests on green; in-game maps score across the year)
   function yearTarget(){
-    if (!current || reachedRecord) return RECORD_PAL;
-    var p = score / horizonFor(current.id);          // position across the year; > 1 means the record is beaten
-    if (p > 1) return RECORD_PAL;
-    var f = p * YEAR.length, i = Math.floor(f);       // 0..12
-    if (i > YEAR.length - 1) i = YEAR.length - 1;
-    var j = i + 1 > YEAR.length - 1 ? YEAR.length - 1 : i + 1, t = f - i;
-    var a = YEAR[i], b = YEAR[j];
-    return { name: a.name,
-             bg:  rgb2hx(lerpC(hx2rgb(a.bg),  hx2rgb(b.bg),  t)),
-             ink: rgb2hx(lerpC(hx2rgb(a.ink), hx2rgb(b.ink), t)) };
+    if (!current) return HOMErgb;                     // menu rests on a calm twilight
+    if (reachedRecord) return RECrgb;                 // beat the #1 -> classic arcade green
+    var p = score / horizonFor(current.id);           // position across the year; > 1 means record beaten
+    if (p > 1) return RECrgb;
+    var f = p * YEARrgb.length, i = Math.floor(f);    // 0..12
+    if (i > YEARrgb.length - 1) i = YEARrgb.length - 1;
+    var j = i + 1 > YEARrgb.length - 1 ? YEARrgb.length - 1 : i + 1, t = f - i;
+    return lerpPal(YEARrgb[i], YEARrgb[j], t);
   }
 
   // ease the displayed palette toward the target each frame; latch + bloom on first record
@@ -479,17 +496,22 @@
       reachedRecord = true;                           // you passed the #1 -> stay green for the rest of the run
       if (!REDUCED) recordFlash = ts + 520;           // one gentle bloom, no strobe
     }
-    var tgt = yearTarget(), tb = hx2rgb(tgt.bg), ti = hx2rgb(tgt.ink);
+    var tgt = yearTarget();
     var k = REDUCED ? 1 : 1 - Math.pow(0.0015, Math.min(dtMs, 100) / 1000);  // frame-rate independent; settles in ~1s
-    liveBg = lerpC(liveBg, tb, k); liveInk = lerpC(liveInk, ti, k);
-    LCD_BG = rgb2hx(liveBg); INK = rgb2hx(enforceContrast(liveInk, liveBg));
+    for (var s = 0; s < 4; s++) liveSky[s] = lerpC(liveSky[s], tgt.sky[s], k);
+    liveInk = lerpC(liveInk, tgt.ink, k); liveGlow = lerpC(liveGlow, tgt.glow, k);
+    LCD_BG = rgb2hx(liveSky[2]);                                             // status bar / UI base = lower-mid sky
+    INK = rgb2hx(enforceContrast(liveInk, liveSky[2]));
+    HALO = rgb2hx(lerpC(liveSky[3], WHITE, 0.42));                           // light keyline for figures
+    applyTheme();
   }
 
   // snap instantly to the present target (used when a run begins so it opens in autumn, not mid-fade)
   function snapPalette(){
     var tgt = yearTarget();
-    liveBg = hx2rgb(tgt.bg); liveInk = hx2rgb(tgt.ink);
-    LCD_BG = tgt.bg; INK = rgb2hx(enforceContrast(liveInk, liveBg));
+    for (var s = 0; s < 4; s++) liveSky[s] = { r: tgt.sky[s].r, g: tgt.sky[s].g, b: tgt.sky[s].b };
+    liveInk = { r: tgt.ink.r, g: tgt.ink.g, b: tgt.ink.b }; liveGlow = { r: tgt.glow.r, g: tgt.glow.g, b: tgt.glow.b };
+    LCD_BG = rgb2hx(liveSky[2]); INK = rgb2hx(enforceContrast(liveInk, liveSky[2])); HALO = rgb2hx(lerpC(liveSky[3], WHITE, 0.42)); applyTheme();
   }
 
   // ===== dithered seasonal atmosphere (cached offscreen) =====
@@ -499,31 +521,46 @@
   // The cache is rebuilt only when the (quantized) palette or the field size changes,
   // so every steady frame is a single blit -- true dark night/parallax/particles come
   // later, once figure halos make stronger atmosphere safe.
-  var SKY_MIX = 0.17, GROUND_MIX = 0.10, HORIZON = 0.66;       // depth toward INK; horizon as a fraction of field height
   var BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];   // 4x4 ordered-dither thresholds (/16)
-  var atmoCanvas = null, atmoCtx = null, atmoKey = '';
+  var atmoCanvas = null, atmoCtx = null, cloudCanvas = null, cloudCtx = null, atmoKey = '', cloudOffset = 0;
 
-  function qChan(h){ var c = hx2rgb(h); return ((c.r >> 3) << 10) | ((c.g >> 3) << 5) | (c.b >> 3); } // ~8 levels/channel
-  function atmoCacheKey(){ return cell + 'x' + GRID + '|' + qChan(LCD_BG) + '|' + qChan(INK); }
+  function qChan(h){ var c = hx2rgb(h); return ((c.r >> 4) << 8) | ((c.g >> 4) << 4) | (c.b >> 4); }  // ~16 levels/channel
+  function qc(c){ return ((Math.round(c.r) >> 4) << 8) | ((Math.round(c.g) >> 4) << 4) | (Math.round(c.b) >> 4); }
+  function atmoCacheKey(){ return cell + 'x' + GRID + '|' + qc(liveSky[0]) + qc(liveSky[1]) + qc(liveSky[2]) + qc(liveSky[3]) + qc(liveGlow); }
 
+  // multi-colour pixel-art sky: only the 4 palette colours appear, with dithered band transitions
   function buildAtmosphere(){
     var fw = Math.round(cell * GRID), fh = Math.round(cell * GRID);
     if (!atmoCanvas){ atmoCanvas = document.createElement('canvas'); atmoCtx = atmoCanvas.getContext('2d'); }
     atmoCanvas.width = fw; atmoCanvas.height = fh;
-    var bg = hx2rgb(LCD_BG);
-    var light = bg, sky = lerpC(bg, hx2rgb(INK), SKY_MIX), ground = lerpC(bg, hx2rgb(INK), GROUND_MIX);
-    var img = atmoCtx.createImageData(fw, fh), d = img.data, hy = HORIZON * (fh - 1);
+    var S = liveSky, img = atmoCtx.createImageData(fw, fh), d = img.data;
     for (var y = 0; y < fh; y++){
-      var inSky = y <= hy;                                     // probability of the deeper tone at this row
-      var prob = inSky ? 1 - y / hy : (y - hy) / (fh - 1 - hy);
-      var deep = inSky ? sky : ground, row = (y & 3) * 4;
+      var seg = (y / (fh - 1)) * 3, i = seg | 0; if (i > 2) i = 2;
+      var t = seg - i, row = (y & 3) * 4;
       for (var x = 0; x < fw; x++){
-        var c = prob > (BAYER[row + (x & 3)] + 0.5) / 16 ? deep : light, o = (y * fw + x) * 4;
+        var c = (t > (BAYER[row + (x & 3)] + 0.5) / 16) ? S[i + 1] : S[i], o = (y * fw + x) * 4;
         d[o] = c.r; d[o + 1] = c.g; d[o + 2] = c.b; d[o + 3] = 255;
       }
     }
     atmoCtx.putImageData(img, 0, 0);
+    buildClouds(fw, fh);
     atmoKey = atmoCacheKey();
+  }
+  // a soft drifting haze band up in the sky (glow-tinted, semi-transparent) -> movement
+  function buildClouds(fw, fh){
+    if (!cloudCanvas){ cloudCanvas = document.createElement('canvas'); cloudCtx = cloudCanvas.getContext('2d'); }
+    cloudCanvas.width = fw; cloudCanvas.height = fh;
+    var img = cloudCtx.createImageData(fw, fh), d = img.data, col = lerpC(liveSky[1], liveGlow, 0.5);
+    for (var y = 0; y < fh; y++){
+      var band = Math.exp(-Math.pow((y - fh * 0.24) / (fh * 0.16), 2)), row = (y & 3) * 4;
+      for (var x = 0; x < fw; x++){
+        var n = 0.5 + 0.5 * Math.sin(x * 18.85 / fw + y * 0.05) * Math.sin(x * 6.283 / fw - y * 0.03);  // periodic in x -> tiles
+        var o = (y * fw + x) * 4;
+        if (band * n * 0.7 > (BAYER[row + (x & 3)] + 0.5) / 16){ d[o] = col.r; d[o + 1] = col.g; d[o + 2] = col.b; d[o + 3] = 150; }
+        else d[o + 3] = 0;
+      }
+    }
+    cloudCtx.putImageData(img, 0, 0);
   }
   function ensureAtmosphere(){ if (atmoCacheKey() !== atmoKey) buildAtmosphere(); }
 
@@ -565,12 +602,13 @@
       if (p.y > fw + 2) p.y = -2; else if (p.y < -2) p.y = fw + 2;
       if (p.x > fw + 2) p.x = -2; else if (p.x < -2) p.x = fw + 2;
     }
+    cloudOffset += Math.min(dt, 80) / 1000 * 9;          // slow horizontal cloud drift (movement)
   }
   function drawParticles(){
     if (REDUCED || !current || !PARTS.length) return;
     var info = yearInfo(); if (info.record) return;
     var pr = PROFILE[info.season], fw = cell * GRID;
-    ctx.fillStyle = rgb2hx(lerpC(liveBg, pr.accent, 0.5));
+    ctx.fillStyle = rgb2hx(liveGlow);
     for (var i = 0; i < pr.n; i++){
       var p = PARTS[i];
       if (p.x < 0 || p.y < 0 || p.x >= fw || p.y >= fw) continue;
@@ -760,15 +798,19 @@
     ctx.fillStyle = LCD_BG; ctx.fillRect(0, 0, W, H);  // flat wash keeps the status bar plain
     if (!current){ ctx.fillStyle = INK; return; }      // menu: the panel covers the canvas
     ensureAtmosphere();
-    ctx.drawImage(atmoCanvas, fieldX, fieldY, cell * GRID, cell * GRID);  // dithered seasonal sky behind the field
-    drawParticles();                                    // drifting embers/snow/pollen/haze, behind the haloed figures
+    var fw = cell * GRID;
+    ctx.drawImage(atmoCanvas, fieldX, fieldY, fw, fw);   // multi-colour dithered seasonal sky
+    var coff = cloudOffset % fw; if (coff < 0) coff += fw;
+    ctx.drawImage(cloudCanvas, fieldX - coff, fieldY, fw, fw);        // drifting haze, wrapped for seamless scroll
+    ctx.drawImage(cloudCanvas, fieldX - coff + fw, fieldY, fw, fw);
+    drawParticles();                                    // drifting particles, behind the haloed figures
     ctx.fillStyle = INK;
     var fs = Math.max(1, Math.floor(statusH / 9));
     var fy = Math.round((statusH - 7 * fs) / 2);
     text(String(score), 2 * fs, fy, fs, false);
     text('HI' + String(best), W - 2 * fs, fy, fs, true);
     var info = yearInfo(), segN = 12, sg = 1, barH = statusH >= 14 ? 2 : 1;  // 12-segment "year" progress along the top edge
-    var segW = (W - (segN - 1) * sg) / segN, dim = rgb2hx(lerpC(liveBg, hx2rgb(INK), 0.22));
+    var segW = (W - (segN - 1) * sg) / segN, dim = rgb2hx(lerpC(liveSky[2], hx2rgb(INK), 0.22));
     for (var si = 0; si < segN; si++){
       ctx.fillStyle = (info.record || si / segN < info.p) ? INK : dim;
       ctx.fillRect(px(si * (segW + sg)), 0, Math.max(1, Math.round(segW)), barH);
