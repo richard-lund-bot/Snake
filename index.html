@@ -231,7 +231,7 @@
 <body>
   <div id="app">
     <div id="device">
-      <div id="brand">LO-FI<sup id="brandVer">v2.4</sup><small id="brandSub">ARCADE</small></div>
+      <div id="brand">LO-FI<sup id="brandVer">v2.5</sup><small id="brandSub">ARCADE</small></div>
       <div id="screen">
         <canvas id="game"></canvas>
         <button id="pauseBtn" type="button" aria-label="Pause"><i></i><i></i></button>
@@ -586,19 +586,33 @@
   var Sound = (function(){
     var ctx, master, musicLP, chordBus, bassBus, melBus, drumBus, crackle, noiseBuf, started = false, on = false;
     var MASTER = 0.7;
-    // ---- lo-fi engine: ~72bpm, swung, 8-bar loop. Everything is diatonic to C major,
-    //      so a C-major-pentatonic melody stays consonant over every season's chords. ----
-    var TEMPO = 72, spb = 60 / TEMPO, s16 = spb / 4, SWING = 0.012, TOTAL = 128;  // 8 bars x 16 steps
+    // ---- lo-fi engine: ONE tune (vi-IV-I-V in C + a pentatonic melody), RE-ARRANGED per
+    //      season -- different tempo, drum pattern/feel, and lead+chord instruments. ----
+    var spb = 0.83, s16 = 0.21, TOTAL = 128;             // recomputed from the season's tempo at each loop
     function mtf(m){ return 440 * Math.pow(2, (m - 69) / 12); }
-    var Am7=[57,60,64,67], Dm7=[50,53,57,60], G7=[55,59,62,65], Cma=[48,52,55,59], Em7=[52,55,59,62], Fma=[53,57,60,65];
-    var PROG = [ [Am7,Dm7,G7,Cma], [Am7,Em7,Fma,Cma], [Fma,G7,Cma,Am7], [Cma,Am7,Dm7,G7] ]; // one progression per season
-    var ROOT = [ [45,38,43,36], [45,40,41,36], [41,43,36,45], [36,45,38,43] ];               // bass roots per season
-    var MEL = { 4:67,10:69, 22:72,28:69, 36:76,42:74, 52:72, 68:69,74:67, 86:64,92:67, 100:69,106:72,110:74, 120:72,126:69 }; // pentatonic, 8-bar phrase A+B
-    var KICK  = [1,0,0,0, 0,0,0,0, 1,0,0,1, 0,0,0,0];
-    var SNARE = [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0];
-    var GAIN = { drum: 0.82, chord: 0.5, bass: 0.68, mel: 0.6, crackle: 0.16 };   // bus levels (tunable)
-    var timer = null, nextT = 0, step = 0;
-    var moodSeason = 0, moodDay = 1, playProg = PROG[0], playRoot = ROOT[0];      // current vibe; latched per loop
+    var Am7=[57,60,64,67], Fma=[53,57,60,65], Cma=[48,52,55,59], G7=[55,59,62,65];
+    var PROG = [Am7, Fma, Cma, G7], ROOT = [45, 41, 36, 43];   // same progression every season (vi IV I V)
+    var MEL = { 4:67,10:69, 22:72,28:69, 36:76,42:74, 52:72, 68:69,74:67, 86:64,92:67, 100:69,106:72,110:74, 120:72,126:69 };
+    var SEAS = [
+      { bpm:72, swing:0.014, hatEvery:2, hatVel:0.12, open:false,                                 // AUTUMN: warm boom-bap, Rhodes
+        kick:[1,0,0,0,0,0,0,0,1,0,0,1,0,0,0,0], snare:[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],
+        lead:{w1:'triangle',w2:'sine',     harm:1, det:-6, cut:2300, atk:0.06,  rel:0.45, vib:4},
+        chd:{w1:'sine',     w2:'triangle', det:7,  atk:0.03} },
+      { bpm:66, swing:0.008, hatEvery:4, hatVel:0.07, open:false,                                 // WINTER: slow, sparse, glassy bell
+        kick:[1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0], snare:[0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0],
+        lead:{w1:'sine',     w2:'sine',     harm:2, det:2,  cut:3800, atk:0.005, rel:0.95, vib:0},
+        chd:{w1:'sine',     w2:'sine',     det:3,  atk:0.10} },
+      { bpm:78, swing:0.012, hatEvery:1, hatVel:0.09, open:false,                                 // SPRING: brighter, plucky, busy hats
+        kick:[1,0,0,0,0,0,0,0,1,0,0,1,0,0,0,0], snare:[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],
+        lead:{w1:'triangle',w2:'triangle', harm:1, det:4,  cut:3000, atk:0.004, rel:0.22, vib:0},
+        chd:{w1:'triangle', w2:'sine',     det:8,  atk:0.015} },
+      { bpm:74, swing:0.02,  hatEvery:2, hatVel:0.13, open:true,                                  // SUMMER: groovy shuffle, fat dreamy
+        kick:[1,0,0,0,0,0,0,0,1,0,0,1,0,0,1,0], snare:[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],
+        lead:{w1:'triangle',w2:'triangle', harm:1, det:-11,cut:2100, atk:0.05,  rel:0.6,  vib:6},
+        chd:{w1:'triangle', w2:'triangle', det:10, atk:0.06} }
+    ];
+    var GAIN = { drum: 0.82, chord: 0.5, bass: 0.68, mel: 0.58, crackle: 0.16 };  // bus levels (tunable)
+    var timer = null, nextT = 0, step = 0, moodSeason = 0, moodDay = 1, A = SEAS[0]; // A = current arrangement (latched per loop)
     function ensure(){
       if (ctx) return true;
       try {
@@ -622,7 +636,7 @@
       musicLP = ctx.createBiquadFilter(); musicLP.type = 'lowpass'; musicLP.frequency.value = 3200; musicLP.Q.value = 0.4; musicLP.connect(master);
       chordBus = ctx.createGain(); chordBus.gain.value = GAIN.chord; chordBus.connect(musicLP);
       bassBus = ctx.createGain(); bassBus.gain.value = GAIN.bass; bassBus.connect(musicLP);
-      melBus = ctx.createGain(); melBus.gain.value = GAIN.mel; melBus.connect(musicLP);
+      melBus = ctx.createGain(); melBus.gain.value = GAIN.mel; melBus.connect(master); // lead bypasses the bed low-pass so its per-season timbre comes through
       drumBus = ctx.createGain(); drumBus.gain.value = GAIN.drum; drumBus.connect(master);
       var tl = ctx.createOscillator(), tg = ctx.createGain(); tl.frequency.value = 5.2; tg.gain.value = 0.1; tl.connect(tg); tg.connect(chordBus.gain); tl.start(); // wurli tremolo
     }
@@ -644,34 +658,35 @@
       f.type = 'highpass'; f.frequency.value = 8000; env(g, t, vel, dur); nz.connect(f); f.connect(g); g.connect(drumBus); nz.start(t); nz.stop(t + dur + 0.02);
     }
     function chord(arr, t, dur, vel){
+      var C = A.chd;
       for (var i = 0; i < arr.length; i++){
         var fr = mtf(arr[i]), o = ctx.createOscillator(), o2 = ctx.createOscillator(), g = ctx.createGain();
-        o.type = 'sine'; o2.type = 'triangle'; o.frequency.value = fr; o2.frequency.value = fr; o2.detune.value = 7;
-        env(g, t, vel, dur, 0.03); o.connect(g); o2.connect(g); g.connect(chordBus); o.start(t); o2.start(t); o.stop(t + dur + 0.1); o2.stop(t + dur + 0.1);
+        o.type = C.w1; o2.type = C.w2; o.frequency.value = fr; o2.frequency.value = fr; o2.detune.value = C.det;
+        env(g, t, vel, dur, C.atk); o.connect(g); o2.connect(g); g.connect(chordBus); o.start(t); o2.start(t); o.stop(t + dur + 0.1); o2.stop(t + dur + 0.1);
       }
     }
     function bass(m, t, dur){
       var o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'triangle'; o.frequency.value = mtf(m);
       env(g, t, 0.32, dur, 0.02); o.connect(g); g.connect(bassBus); o.start(t); o.stop(t + dur + 0.05);
     }
-    function lead(m, t){     // smooth mellow melody: detuned tri+sine, soft attack, low-passed, gentle vibrato
-      var fr = mtf(m), o = ctx.createOscillator(), o2 = ctx.createOscillator(), g = ctx.createGain(), lp = ctx.createBiquadFilter();
-      o.type = 'triangle'; o2.type = 'sine'; o.frequency.value = fr; o2.frequency.value = fr; o2.detune.value = -6;
-      lp.type = 'lowpass'; lp.frequency.value = 2300; lp.Q.value = 0.5;
-      g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.2, t + 0.06); g.gain.setTargetAtTime(0.0001, t + 0.45, 0.28);
-      var vb = ctx.createOscillator(), vg = ctx.createGain(); vb.frequency.value = 5; vg.gain.value = 4; vb.connect(vg); vg.connect(o.detune); vg.connect(o2.detune); vb.start(t); vb.stop(t + 1.3);
-      o.connect(lp); o2.connect(lp); lp.connect(g); g.connect(melBus); o.start(t); o2.start(t); o.stop(t + 1.3); o2.stop(t + 1.3);
+    function lead(m, t){     // melody voice; timbre (waveforms/octave/attack/release/vibrato/filter) is per-season
+      var L = A.lead, fr = mtf(m), o = ctx.createOscillator(), o2 = ctx.createOscillator(), g = ctx.createGain(), lp = ctx.createBiquadFilter();
+      o.type = L.w1; o2.type = L.w2; o.frequency.value = fr; o2.frequency.value = fr * (L.harm || 1); o2.detune.value = L.det;
+      lp.type = 'lowpass'; lp.frequency.value = L.cut; lp.Q.value = 0.5;
+      g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.2, t + L.atk); g.gain.setTargetAtTime(0.0001, t + L.atk + 0.04, L.rel / 3.5);
+      if (L.vib){ var vb = ctx.createOscillator(), vg = ctx.createGain(); vb.frequency.value = 5; vg.gain.value = L.vib; vb.connect(vg); vg.connect(o.detune); vg.connect(o2.detune); vb.start(t); vb.stop(t + 1.5); }
+      o.connect(lp); o2.connect(lp); lp.connect(g); g.connect(melBus);
+      var dur = L.atk + L.rel + 0.4; o.start(t); o2.start(t); o.stop(t + dur); o2.stop(t + dur);
     }
     function scheduleStep(gs, t){
-      if (gs % 64 === 0){ playProg = PROG[moodSeason]; playRoot = ROOT[moodSeason]; }   // latch the season's chords at each 4-bar boundary
-      var bar = gs / 16 | 0, ci = bar % 4, sib = gs % 16, sw = (sib % 4 === 2) ? t + SWING : t;
-      if (KICK[sib] && (sib !== 11 || moodDay >= 1)) kick(t);                            // drop the ghost kick at dawn
-      if (SNARE[sib]) snare(t);
-      var hatOn = (sib % 2 === 0) && (moodDay >= 1 || sib % 4 === 0);                    // dawn: hats on the beat only
-      if (hatOn) hat(sw, sib % 4 === 0 ? 0.15 : 0.09, sib === 14 && bar % 2 === 1);
+      if (gs % 64 === 0){ A = SEAS[moodSeason]; spb = 60 / A.bpm; s16 = spb / 4; }       // latch the season's arrangement + tempo at each 4-bar boundary
+      var bar = gs / 16 | 0, ci = bar % 4, sib = gs % 16, sw = (sib % 4 === 2) ? t + A.swing : t, dawn = moodDay === 0;
+      if (A.kick[sib] && !(dawn && sib === 11)) kick(t);                                 // drop the ghost kick at dawn
+      if (A.snare[sib]) snare(t);
+      if (sib % A.hatEvery === 0 && !(dawn && sib % 4 !== 0)) hat(sw, A.hatVel * (dawn ? 0.7 : 1), A.open && sib === 14 && bar % 2 === 1);
       if (bar === 7 && (sib === 13 || sib === 15)) snare(t);                             // tiny end-of-loop fill
-      if (sib === 0){ chord(playProg[ci], t, spb * 3, 0.07); bass(playRoot[ci], t, spb * 1.6); }
-      else if (sib === 8){ chord(playProg[ci], t, spb * 1.5, 0.05); bass(playRoot[ci], t, spb * 1.4); }
+      if (sib === 0){ chord(PROG[ci], t, spb * 3, 0.07); bass(ROOT[ci], t, spb * 1.6); }
+      else if (sib === 8){ chord(PROG[ci], t, spb * 1.5, 0.05); bass(ROOT[ci], t, spb * 1.4); }
       if (MEL[gs]) lead(MEL[gs], sw);
     }
     function tick(){
@@ -715,7 +730,7 @@
       toggle: function(){ return setOn(!on); },
       enable: function(){ return setOn(true); },
       update: update,
-      resetRun: function(){ moodSeason = 0; moodDay = 0; playProg = PROG[0]; playRoot = ROOT[0]; },
+      resetRun: function(){ moodSeason = 0; moodDay = 0; A = SEAS[0]; },
       isOn: function(){ return on; }
     };
   })();
