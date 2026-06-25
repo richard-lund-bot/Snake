@@ -69,6 +69,11 @@
     display:block; letter-spacing:3px; font-size:9px; font-weight:600; opacity:.7;
     color:#c0998f; -webkit-text-fill-color:#c0998f;       /* dusty clay subtitle, opted out of the gradient */
   }
+  #brandVer{
+    font-size:8px; font-weight:700; letter-spacing:0; vertical-align:super;
+    margin-left:3px; opacity:.75;
+    color:#c0998f; -webkit-text-fill-color:#c0998f;       /* version badge, solid clay (not the gradient) */
+  }
   /* ---- LCD screen ---- */
   #screen{
     position:relative; flex:1 1 auto; min-height:0;
@@ -226,7 +231,7 @@
 <body>
   <div id="app">
     <div id="device">
-      <div id="brand">LO-FI<small id="brandSub">ARCADE</small></div>
+      <div id="brand">LO-FI<sup id="brandVer">v2.1</sup><small id="brandSub">ARCADE</small></div>
       <div id="screen">
         <canvas id="game"></canvas>
         <button id="pauseBtn" type="button" aria-label="Pause"><i></i><i></i></button>
