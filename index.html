@@ -231,7 +231,7 @@
 <body>
   <div id="app">
     <div id="device">
-      <div id="brand">LO-FI<sup id="brandVer">v2.3</sup><small id="brandSub">ARCADE</small></div>
+      <div id="brand">LO-FI<sup id="brandVer">v2.4</sup><small id="brandSub">ARCADE</small></div>
       <div id="screen">
         <canvas id="game"></canvas>
         <button id="pauseBtn" type="button" aria-label="Pause"><i></i><i></i></button>
@@ -586,17 +586,19 @@
   var Sound = (function(){
     var ctx, master, musicLP, chordBus, bassBus, melBus, drumBus, crackle, noiseBuf, started = false, on = false;
     var MASTER = 0.7;
-    // ---- lo-fi loop: ii-V-I-vi in C, ~74bpm, swung; notes/levels are tunable by ear ----
-    var TEMPO = 74, spb = 60 / TEMPO, s16 = spb / 4, SWING = 0.012, STEPS = 16, TOTAL = 64; // 4-bar loop
+    // ---- lo-fi engine: ~72bpm, swung, 8-bar loop. Everything is diatonic to C major,
+    //      so a C-major-pentatonic melody stays consonant over every season's chords. ----
+    var TEMPO = 72, spb = 60 / TEMPO, s16 = spb / 4, SWING = 0.012, TOTAL = 128;  // 8 bars x 16 steps
     function mtf(m){ return 440 * Math.pow(2, (m - 69) / 12); }
-    var CHORDS = [[50,53,57,60], [43,59,62,65], [48,52,55,59], [45,60,64,67]];   // Dm7  G9  Cmaj7  Am7
-    var BASS = [38, 43, 36, 45];                          // D2 G2 C2 A2 (roots)
-    var MEL = { 6:69, 12:72, 22:71, 28:74, 34:76, 42:72, 52:69, 58:67 };          // sparse music-box line (chord tones)
+    var Am7=[57,60,64,67], Dm7=[50,53,57,60], G7=[55,59,62,65], Cma=[48,52,55,59], Em7=[52,55,59,62], Fma=[53,57,60,65];
+    var PROG = [ [Am7,Dm7,G7,Cma], [Am7,Em7,Fma,Cma], [Fma,G7,Cma,Am7], [Cma,Am7,Dm7,G7] ]; // one progression per season
+    var ROOT = [ [45,38,43,36], [45,40,41,36], [41,43,36,45], [36,45,38,43] ];               // bass roots per season
+    var MEL = { 4:67,10:69, 22:72,28:69, 36:76,42:74, 52:72, 68:69,74:67, 86:64,92:67, 100:69,106:72,110:74, 120:72,126:69 }; // pentatonic, 8-bar phrase A+B
     var KICK  = [1,0,0,0, 0,0,0,0, 1,0,0,1, 0,0,0,0];
     var SNARE = [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0];
-    var HAT   = [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0];
-    var GAIN = { drum: 0.85, chord: 0.5, bass: 0.7, mel: 0.55, crackle: 0.16 };    // bus levels (tunable)
+    var GAIN = { drum: 0.82, chord: 0.5, bass: 0.68, mel: 0.6, crackle: 0.16 };   // bus levels (tunable)
     var timer = null, nextT = 0, step = 0;
+    var moodSeason = 0, moodDay = 1, playProg = PROG[0], playRoot = ROOT[0];      // current vibe; latched per loop
     function ensure(){
       if (ctx) return true;
       try {
@@ -652,20 +654,25 @@
       var o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'triangle'; o.frequency.value = mtf(m);
       env(g, t, 0.32, dur, 0.02); o.connect(g); g.connect(bassBus); o.start(t); o.stop(t + dur + 0.05);
     }
-    function bell(m, t){
-      var fr = mtf(m), o = ctx.createOscillator(), o2 = ctx.createOscillator(), g = ctx.createGain(), g2 = ctx.createGain();
-      o.type = 'sine'; o2.type = 'sine'; o.frequency.value = fr; o2.frequency.value = fr * 2; g2.gain.value = 0.3;
-      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.22, t + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
-      o2.connect(g2); g2.connect(g); o.connect(g); g.connect(melBus); o.start(t); o2.start(t); o.stop(t + 0.95); o2.stop(t + 0.95);
+    function lead(m, t){     // smooth mellow melody: detuned tri+sine, soft attack, low-passed, gentle vibrato
+      var fr = mtf(m), o = ctx.createOscillator(), o2 = ctx.createOscillator(), g = ctx.createGain(), lp = ctx.createBiquadFilter();
+      o.type = 'triangle'; o2.type = 'sine'; o.frequency.value = fr; o2.frequency.value = fr; o2.detune.value = -6;
+      lp.type = 'lowpass'; lp.frequency.value = 2300; lp.Q.value = 0.5;
+      g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.2, t + 0.06); g.gain.setTargetAtTime(0.0001, t + 0.45, 0.28);
+      var vb = ctx.createOscillator(), vg = ctx.createGain(); vb.frequency.value = 5; vg.gain.value = 4; vb.connect(vg); vg.connect(o.detune); vg.connect(o2.detune); vb.start(t); vb.stop(t + 1.3);
+      o.connect(lp); o2.connect(lp); lp.connect(g); g.connect(melBus); o.start(t); o2.start(t); o.stop(t + 1.3); o2.stop(t + 1.3);
     }
     function scheduleStep(gs, t){
-      var bar = (gs / 16 | 0) % 4, sib = gs % 16, sw = (sib % 4 === 2) ? t + SWING : t;
-      if (KICK[sib]) kick(t);
+      if (gs % 64 === 0){ playProg = PROG[moodSeason]; playRoot = ROOT[moodSeason]; }   // latch the season's chords at each 4-bar boundary
+      var bar = gs / 16 | 0, ci = bar % 4, sib = gs % 16, sw = (sib % 4 === 2) ? t + SWING : t;
+      if (KICK[sib] && (sib !== 11 || moodDay >= 1)) kick(t);                            // drop the ghost kick at dawn
       if (SNARE[sib]) snare(t);
-      if (HAT[sib]) hat(sw, sib % 4 === 0 ? 0.16 : 0.1, sib === 14 && bar % 2 === 1);
-      if (sib === 0){ chord(CHORDS[bar], t, spb * 3, 0.07); bass(BASS[bar], t, spb * 1.6); }
-      else if (sib === 8){ chord(CHORDS[bar], t, spb * 1.6, 0.05); bass(BASS[bar], t, spb * 1.4); }
-      if (MEL[gs]) bell(MEL[gs], sw);
+      var hatOn = (sib % 2 === 0) && (moodDay >= 1 || sib % 4 === 0);                    // dawn: hats on the beat only
+      if (hatOn) hat(sw, sib % 4 === 0 ? 0.15 : 0.09, sib === 14 && bar % 2 === 1);
+      if (bar === 7 && (sib === 13 || sib === 15)) snare(t);                             // tiny end-of-loop fill
+      if (sib === 0){ chord(playProg[ci], t, spb * 3, 0.07); bass(playRoot[ci], t, spb * 1.6); }
+      else if (sib === 8){ chord(playProg[ci], t, spb * 1.5, 0.05); bass(playRoot[ci], t, spb * 1.4); }
+      if (MEL[gs]) lead(MEL[gs], sw);
     }
     function tick(){
       if (!ctx) return;
@@ -674,37 +681,18 @@
     }
     function startSeq(){ if (timer) return; nextT = ctx.currentTime + 0.12; step = 0; timer = setInterval(tick, 25); }
     function stopSeq(){ if (timer){ clearInterval(timer); timer = null; } }
-    function season(i){     // subtle per-season brightness on the music low-pass
+    function setMood(){      // glide the music low-pass to the season + time-of-day brightness (no discrete tones)
       if (!musicLP) return;
-      var cut = i < 0 ? 3200 : [2600, 3000, 3600, 4200][i] || 3200;
-      try { musicLP.frequency.setTargetAtTime(cut, ctx.currentTime, 1.5); } catch(e){}
+      var base = [2400, 2700, 3300, 3900][moodSeason] || 3000, day = [-350, 500, -150][moodDay] || 0;
+      var cut = Math.max(1200, Math.min(6000, base + day));
+      try { musicLP.frequency.setTargetAtTime(cut, ctx.currentTime, 2.0); } catch(e){}
     }
-    function chime(when){
-      try {
-        var t = when || ctx.currentTime, f = 620 + Math.random() * 260, g = ctx.createGain();
-        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.55, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.7); g.connect(master);
-        var o1 = ctx.createOscillator(), o2 = ctx.createOscillator();
-        o1.type = 'sine'; o2.type = 'sine'; o1.frequency.value = f; o2.frequency.value = f * 2.01;
-        o1.connect(g); o2.connect(g); o1.start(t); o2.start(t); o1.stop(t + 0.75); o2.stop(t + 0.75);
-      } catch(e){}
-    }
-    function resolve(){
-      try {
-        var t = ctx.currentTime, base = 174.61, ch = [1, 1.25, 1.5, 2], g = ctx.createGain();
-        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.6, t + 0.08); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.8);
-        var lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1700; g.connect(lp); lp.connect(master);
-        for (var i = 0; i < ch.length; i++){ var o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = base * ch[i]; o.detune.value = (i - 1) * 4; o.connect(g); o.start(t); o.stop(t + 1.9); }
-      } catch(e){}
-    }
-    var aPhase = 0, aSeason = -2, aRec = false, synced = false;
-    function update(info){
+    function update(info){    // the music itself tracks the background: season -> chords, time of day -> brightness/energy
       if (!on || !started) return;
       try {
-        if (!synced){ aPhase = info.phase; aSeason = -2; aRec = false; synced = true; } // adopt the present without a chime burst
-        if (info.record){ if (!aRec){ aRec = true; aSeason = -1; season(-1); resolve(); } return; }
-        aRec = false;
-        if (info.season !== aSeason){ aSeason = info.season; season(info.season); }
-        if (info.phase > aPhase){ aPhase = info.phase; chime(); } else if (info.phase < aPhase) aPhase = info.phase;
+        moodSeason = info.record ? 2 : info.season;        // record reads as spring -- the brightest, most resolved vibe
+        moodDay = info.record ? 1 : (info.phase % 3);
+        setMood();
       } catch(e){}
     }
     function setOn(v){
@@ -715,7 +703,7 @@
         try { var u = ctx.createBufferSource(); u.buffer = ctx.createBuffer(1, 1, ctx.sampleRate); u.connect(ctx.destination); u.start(0); } catch(e){}  // classic iOS unlock: start a 1-sample buffer inside the gesture
         if (!started){ started = true; try { buildBed(); } catch(e){ started = false; } }
         try { var t = ctx.currentTime; master.gain.cancelScheduledValues(t); master.gain.value = MASTER; } catch(e){}
-        if (started){ try { season(0); } catch(e){} try { startSeq(); } catch(e){} try { chime(ctx.currentTime + 0.18); } catch(e){} } // start the loop + a confirmation blip
+        if (started){ try { setMood(); } catch(e){} try { startSeq(); } catch(e){} }  // the beat coming in is the "it's on" confirmation
       } else {
         try { stopSeq(); } catch(e){}
         try { var t2 = ctx.currentTime; master.gain.cancelScheduledValues(t2); master.gain.setTargetAtTime(0, t2, 0.25); } catch(e){}
@@ -727,7 +715,7 @@
       toggle: function(){ return setOn(!on); },
       enable: function(){ return setOn(true); },
       update: update,
-      resetRun: function(){ synced = false; aPhase = 0; aSeason = -2; aRec = false; },
+      resetRun: function(){ moodSeason = 0; moodDay = 0; playProg = PROG[0]; playRoot = ROOT[0]; },
       isOn: function(){ return on; }
     };
   })();
