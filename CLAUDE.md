@@ -28,3 +28,9 @@ git checkout <your working branch>            # return to the assigned dev branc
 This is the one expected exception to "don't push to a branch other than the
 assigned working branch": the owner has given standing approval to keep the
 published branch in sync so the live site always reflects the latest work.
+
+## Version badge
+
+The title carries a version badge (`#brandVer` in the `#brand` element, e.g.
+`v2.1`). **Bump it whenever you ship a change** so the live build is identifiable
+at a glance and the owner can confirm a deploy actually landed.
