@@ -144,6 +144,17 @@
   #pauseBtn:active i{background:var(--lcd);}
   /* hit area extends past the artwork — miss above/below and still "hit" */
   #pauseBtn::after{content:""; position:absolute; inset:-16px -14px;}
+  /* ---- sound toggle (bottom-left, always reachable) ---- */
+  #audioBtn{
+    position:absolute; bottom:6px; left:6px; z-index:20;
+    display:flex; align-items:center; justify-content:center;
+    width:30px; height:30px; padding:0; font-size:16px; line-height:1; color:var(--ink);
+    background:rgba(31,42,20,.10); border:1.5px solid rgba(31,42,20,.55);
+    border-radius:7px; cursor:pointer; -webkit-tap-highlight-color:transparent;
+  }
+  #audioBtn.muted{opacity:.4;}
+  #audioBtn.muted::before{content:""; position:absolute; left:4px; right:4px; top:50%; height:1.5px; background:var(--ink); transform:rotate(-18deg);}
+  #audioBtn::after{content:""; position:absolute; inset:-12px;}
 
   /* ---- D-pad (SNES-style: dark cross on a lighter, fully-tappable plate) ---- */
   #pad{
@@ -209,6 +220,7 @@
       <div id="screen">
         <canvas id="game"></canvas>
         <button id="pauseBtn" type="button" aria-label="Pause"><i></i><i></i></button>
+        <button id="audioBtn" type="button" aria-label="Toggle sound">&#9834;</button>
         <div id="overlay" class="panel">
           <h1 id="ovTitle">SNAKE</h1>
           <p id="ovText">Eat the dots. Don't hit the walls or yourself.</p>
@@ -278,6 +290,7 @@
       ovHint = document.getElementById('ovHint'),
       playBtn = document.getElementById('playBtn'),
       pauseBtn = document.getElementById('pauseBtn'),
+      audioBtn = document.getElementById('audioBtn'),
       scoresBtn = document.getElementById('scoresBtn'),
       menuBtn = document.getElementById('menuBtn'),
       entryPanel = document.getElementById('entry'),
@@ -551,6 +564,89 @@
     ctx.fillStyle = INK;
   }
 
+  // ===== lofi audio (off by default; procedural, no files) =====
+  // A vinyl-crackle + soft pad bed whose chord shifts by season, a sparkle on each
+  // phase-up, and a warm chord when the record falls. Every entry point is wrapped so
+  // audio can never break the game loop; the context is created only after a gesture.
+  var Sound = (function(){
+    var ctx, master, padGain, padLP, padOsc = [], crackle, started = false, on = false;
+    var PADS = [[110.00, 164.81, 220.00], [123.47, 185.00, 246.94], [130.81, 164.81, 196.00], [98.00, 146.83, 196.00]];
+    var PAD_REC = [130.81, 164.81, 196.00];           // levels/voicings are a first pass -- tune by ear in a browser
+    function ensure(){
+      if (ctx) return true;
+      try {
+        var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false;
+        ctx = new AC(); master = ctx.createGain(); master.gain.value = 0; master.connect(ctx.destination); return true;
+      } catch(e){ ctx = null; return false; }
+    }
+    function buildBed(){
+      var len = (ctx.sampleRate * 2) | 0, b = ctx.createBuffer(1, len, ctx.sampleRate), d = b.getChannelData(0);
+      for (var i = 0; i < len; i++){ var n = (Math.random() * 2 - 1) * 0.08; if (Math.random() < 0.0008) n += (Math.random() * 2 - 1) * 0.9; d[i] = n; }
+      crackle = ctx.createBufferSource(); crackle.buffer = b; crackle.loop = true;
+      var hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1100;
+      var cg = ctx.createGain(); cg.gain.value = 0.12; crackle.connect(hp); hp.connect(cg); cg.connect(master); crackle.start();
+      padGain = ctx.createGain(); padGain.gain.value = 0;
+      padLP = ctx.createBiquadFilter(); padLP.type = 'lowpass'; padLP.frequency.value = 700;
+      padGain.connect(padLP); padLP.connect(master);
+      for (var k = 0; k < 3; k++){ var o = ctx.createOscillator(); o.type = k === 0 ? 'triangle' : 'sine'; o.frequency.value = PADS[0][k]; o.connect(padGain); o.start(); padOsc.push(o); }
+      var lfo = ctx.createOscillator(), lg = ctx.createGain(); lfo.frequency.value = 0.05; lg.gain.value = 220; lfo.connect(lg); lg.connect(padLP.frequency); lfo.start();
+    }
+    function season(i){
+      if (!padOsc.length) return;
+      var ch = i < 0 ? PAD_REC : PADS[i], t = ctx.currentTime;
+      for (var k = 0; k < padOsc.length; k++){ try { padOsc[k].frequency.setTargetAtTime(ch[k], t, 0.6); } catch(e){} }
+      try { padGain.gain.setTargetAtTime(0.10, t, 0.8); } catch(e){}
+    }
+    function chime(){
+      try {
+        var t = ctx.currentTime, f = 620 + Math.random() * 260, g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.4, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.7); g.connect(master);
+        var o1 = ctx.createOscillator(), o2 = ctx.createOscillator();
+        o1.type = 'sine'; o2.type = 'sine'; o1.frequency.value = f; o2.frequency.value = f * 2.01;
+        o1.connect(g); o2.connect(g); o1.start(t); o2.start(t); o1.stop(t + 0.75); o2.stop(t + 0.75);
+      } catch(e){}
+    }
+    function resolve(){
+      try {
+        var t = ctx.currentTime, base = 174.61, ch = [1, 1.25, 1.5, 2], g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.45, t + 0.08); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.8);
+        var lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1700; g.connect(lp); lp.connect(master);
+        for (var i = 0; i < ch.length; i++){ var o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = base * ch[i]; o.detune.value = (i - 1) * 4; o.connect(g); o.start(t); o.stop(t + 1.9); }
+      } catch(e){}
+    }
+    var aPhase = 0, aSeason = -2, aRec = false, synced = false;
+    function update(info){
+      if (!on || !started) return;
+      try {
+        if (!synced){ aPhase = info.phase; aSeason = -2; aRec = false; synced = true; } // adopt the present without a chime burst
+        if (info.record){ if (!aRec){ aRec = true; aSeason = -1; season(-1); resolve(); } return; }
+        aRec = false;
+        if (info.season !== aSeason){ aSeason = info.season; season(info.season); }
+        if (info.phase > aPhase){ aPhase = info.phase; chime(); } else if (info.phase < aPhase) aPhase = info.phase;
+      } catch(e){}
+    }
+    function setOn(v){
+      on = v; try { localStorage.setItem('lofi:audio', v ? '1' : '0'); } catch(e){}
+      if (v){
+        if (!ensure()){ on = false; return false; }
+        try { if (ctx.state === 'suspended') ctx.resume(); } catch(e){}
+        if (!started){ started = true; try { buildBed(); } catch(e){ started = false; } }
+        try { var t = ctx.currentTime; master.gain.cancelScheduledValues(t); master.gain.setTargetAtTime(0.55, t, 0.3); } catch(e){}
+      } else {
+        try { var t2 = ctx.currentTime; master.gain.cancelScheduledValues(t2); master.gain.setTargetAtTime(0, t2, 0.2); } catch(e){}
+      }
+      return on;
+    }
+    return {
+      toggle: function(){ return setOn(!on); },
+      enable: function(){ return setOn(true); },
+      update: update,
+      resetRun: function(){ synced = false; aPhase = 0; aSeason = -2; aRec = false; },
+      isOn: function(){ return on; }
+    };
+  })();
+  function updateAudioBtn(){ if (audioBtn) audioBtn.classList.toggle('muted', !Sound.isOn()); }
+
   // ===== sizing =====
   function resize(){
     var pad = 10, rect = screenEl.getBoundingClientRect();
@@ -612,6 +708,7 @@
     if (!lastPaletteTs) lastPaletteTs = ts;
     var dt = ts - lastPaletteTs; lastPaletteTs = ts;
     updatePalette(dt, ts); updateParticles(dt);
+    if (current) Sound.update(yearInfo());
     draw(ts);
   }
 
@@ -665,6 +762,7 @@
     hidePanels();
     g.reset(api);                       // populate state before the first draw
     snapPalette();                      // open the run in autumn dawn, not a mid-fade from the menu green
+    Sound.resetRun();
     resize();
     state = 'playing'; lastStep = 0; pauseBtn.classList.add('show');
   }
@@ -740,6 +838,20 @@
   press(scoresBack, function(){ if (screenKind === 'end') showEnd(); else showMenu(); });
   entryForm.addEventListener('submit', function(e){ e.preventDefault(); saveEntry(); });
   press(pauseBtn, function(){ if (state === 'playing') togglePause(); });
+  press(audioBtn, function(){ Sound.toggle(); updateAudioBtn(); });
+  (function(){                                        // reflect a saved sound preference; resume it on the first gesture
+    var pref = false; try { pref = localStorage.getItem('lofi:audio') === '1'; } catch(e){}
+    updateAudioBtn();
+    if (pref){
+      var kick = function(e){
+        if (e){ if (e.type === 'keydown' && (e.key === 'm' || e.key === 'M')) return;
+                if (e.target && e.target.closest && e.target.closest('#audioBtn')) return; }
+        Sound.enable(); updateAudioBtn();
+        window.removeEventListener('pointerdown', kick, true); window.removeEventListener('keydown', kick, true);
+      };
+      window.addEventListener('pointerdown', kick, true); window.addEventListener('keydown', kick, true);
+    }
+  })();
   gameList.addEventListener('pointerdown', function(e){
     var li = e.target.closest('li'); if (!li) return;
     e.preventDefault();
@@ -768,7 +880,8 @@
       else if (state === 'playing' || state === 'paused') togglePause();
       else activate();
       e.preventDefault(); return;
-    } else return;
+    } else if (k === 'm' || k === 'M'){ Sound.toggle(); updateAudioBtn(); e.preventDefault(); return; }
+    else return;
     if (state === 'playing'){ if (current && current.onDir) current.onDir(dx, dy, api); }
     else if (state === 'menu') menuNav(dx, dy);
     else if (state === 'over' && !overlay.classList.contains('hidden')) activate();
