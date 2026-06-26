@@ -136,6 +136,7 @@
   #scoreList .ph{flex:1; text-align:right; font-size:10px; opacity:.5; letter-spacing:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   #scoreList .sc{font-weight:800;}
   #scoreList .empty{justify-content:center; opacity:.6;}
+  #scoreList .sum{justify-content:space-between; font-weight:800; font-size:11px; letter-spacing:1px; opacity:.72; padding-bottom:5px; margin-bottom:2px; box-shadow:inset 0 -1px 0 rgba(0,0,0,.18);}
   /* game menu list */
   #gameList{
     list-style:none; margin:0; padding:0 4px; width:100%; max-width:250px;
@@ -145,6 +146,7 @@
   #gameList li.sel{background:var(--ink); color:var(--lcd);}
   #gameList .nm{flex:1; text-align:left;}
   #gameList .sc{font-weight:800; font-size:11px; opacity:.8;}
+  #gameList .day{font-size:10px; opacity:.55; letter-spacing:1px;}
   /* ---- on-screen pause button (floats over the LCD, not part of the D-pad) ---- */
   #pauseBtn{
     position:absolute; bottom:6px; right:6px; z-index:6;
@@ -231,7 +233,7 @@
 <body>
   <div id="app">
     <div id="device">
-      <div id="brand">LO-FI<sup id="brandVer">v2.9</sup><small id="brandSub">ARCADE</small></div>
+      <div id="brand">LO-FI<sup id="brandVer">v3.0</sup><small id="brandSub">ARCADE</small></div>
       <div id="screen">
         <canvas id="game"></canvas>
         <button id="pauseBtn" type="button" aria-label="Pause"><i></i><i></i></button>
@@ -336,6 +338,10 @@
   }
   function saveScores(key, arr){ try { localStorage.setItem(key, JSON.stringify(arr)); } catch(e){} }
   function bestFor(id){ var s = loadScores('hs:' + id); return s.length ? s[0].score : 0; }
+  // daily best (resets each calendar day, stored apart from the all-time board) -- the colour journey is scaled to this
+  function dayKey(){ var d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+  function dailyBestFor(id){ try { var r = JSON.parse(localStorage.getItem('hsd:' + id) || 'null'); if (r && r.d === dayKey()) return r.s || 0; } catch(e){} return 0; }
+  function recordDaily(id, sc){ try { var r = JSON.parse(localStorage.getItem('hsd:' + id) || 'null'); if (!r || r.d !== dayKey()) r = { d: dayKey(), s: 0 }; if (sc > r.s){ r.s = sc; localStorage.setItem('hsd:' + id, JSON.stringify(r)); } } catch(e){} }
   function qualifies(s){ return s > 0 && (scores.length < MAX_SCORES || s > scores[scores.length - 1].score); }
   function rankFor(s){ var r = 1; for (var i = 0; i < scores.length; i++) if (scores[i].score > s) r++; return r; }
   // one-time migration of the original Snake scores into the keyed store
@@ -892,10 +898,11 @@
   function renderMenu(){
     var html = '';
     for (var i = 0; i < GAMES.length; i++){
-      var g = GAMES[i], hb = bestFor(g.id);
+      var g = GAMES[i], hb = bestFor(g.id), db = dailyBestFor(g.id);
       html += '<li data-i="' + i + '"' + (i === menuSel ? ' class="sel"' : '') +
-              '><span class="nm">' + g.title + '</span><span class="sc">' +
-              (hb ? 'HI ' + hb : '—') + '</span></li>';
+              '><span class="nm">' + g.title + '</span>' +
+              '<span class="day">' + (db ? 'TODAY ' + db : '') + '</span>' +
+              '<span class="sc">' + (hb ? 'HI ' + hb : '—') + '</span></li>';
     }
     gameList.innerHTML = html;
   }
@@ -910,7 +917,7 @@
     current = g; GRID = g.grid || 16; api.GRID = GRID;
     hsKey = 'hs:' + g.id; scores = loadScores(hsKey);
     best = scores.length ? scores[0].score : 0; score = 0;
-    runBest = best; reachedRecord = false; recordFlash = 0;   // freeze the record to beat for this run
+    runBest = dailyBestFor(g.id); reachedRecord = false; recordFlash = 0;   // the colour journey is scaled to TODAY's best
     brandSub.textContent = g.title;
     hidePanels();
     g.reset(api);                       // populate state before the first draw
@@ -922,6 +929,7 @@
   }
   function endGame(w){
     won = w; state = 'over'; screenKind = 'end';
+    if (current) recordDaily(current.id, score);      // update today's best (every run, not just qualifying ones)
     if (qualifies(score)) showEntry(); else showEnd();
   }
   function showEnd(){
@@ -959,8 +967,10 @@
     pauseBtn.classList.remove('show');
   }
   function renderScoreList(hlName, hlScore){
-    if (!scores.length){ scoreList.innerHTML = '<li class="empty">No scores yet</li>'; return; }
-    var html = '', hl = (hlName != null);
+    var db = current ? dailyBestFor(current.id) : 0, at = scores.length ? scores[0].score : 0;
+    var head = '<li class="sum"><span>TODAY ' + db + '</span><span>ALL-TIME ' + at + '</span></li>';
+    if (!scores.length){ scoreList.innerHTML = head + '<li class="empty">No scores yet</li>'; return; }
+    var html = head, hl = (hlName != null);
     for (var i = 0; i < scores.length; i++){
       var e = scores[i], you = hl && e.name === hlName && e.score === hlScore;
       if (you) hl = false;
